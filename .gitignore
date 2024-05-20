@@ -1,0 +1,5 @@
+.env
+chat_history.db
+user_preferences.db
+__pycache__/
+.DS_Store

@@ -1,0 +1,15 @@
+version: "3.8"
+
+services:
+  teleapp:
+    container_name: teleapp
+    image: lcwlouis/teleapp:latest
+    networks:
+      - teleapp
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+networks:
+  teleapp:
+    driver: bridge
