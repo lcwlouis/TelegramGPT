@@ -1,9 +1,6 @@
 .env
-chat_history.db
-user_preferences.db
 __pycache__/
 .DS_Store
-python-telegram-bot python-telegram-bot master examples
-.venv
 system_prompt.txt
 chats.db
+user_preferences.db

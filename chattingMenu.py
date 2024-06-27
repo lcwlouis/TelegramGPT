@@ -1,7 +1,5 @@
 import logging
 import sqlite3
-import base64
-from typing import Final
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 from backend import build_message_list, chat_with_gpt, chat_with_claude
