@@ -1,7 +1,7 @@
 import sqlite3
 from typing import Final, List
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.ext import ContextTypes, ConversationHandler
+from telegram.ext import ContextTypes, ConversationHandler, CallbackQueryHandler, MessageHandler, filters
 from backend import get_available_openai_models, get_available_claude_models
 
 # start sqlite3
@@ -297,6 +297,30 @@ async def reset_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['settings'] = [provider, model, temperature, max_tokens, n, start_prompt]
     await show_current_settings(update, context)
     return SELECTING_OPTION
+
+def settings_menu_handler():
+    return {
+            SELECTING_OPTION: [CallbackQueryHandler(option_selected)],
+            SELECTING_PROVIDER: [CallbackQueryHandler(provider_selected)],
+            SELECTING_MODEL: [CallbackQueryHandler(model_selected)],
+            ENTERING_TEMPERATURE: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, temperature_entered),
+                CallbackQueryHandler(back_to_settings, pattern="^back_to_settings$")
+            ],
+            ENTERING_MAX_TOKENS: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, max_tokens_entered),
+                CallbackQueryHandler(back_to_settings, pattern="^back_to_settings$")
+                ],
+            ENTERING_N: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, n_entered),
+                CallbackQueryHandler(back_to_settings, pattern="^back_to_settings$")
+                ],
+            ENTERING_START_PROMPT: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, start_prompt_entered),
+                CallbackQueryHandler(back_to_settings, pattern="^back_to_settings$")
+                ],
+            SELECT_RESET: [CallbackQueryHandler(reset_selected)]
+        }
 
 def kill_connection():
     conn_settinngs.close()

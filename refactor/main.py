@@ -3,11 +3,9 @@ import sqlite3
 import os
 from typing import Final
 from dotenv import load_dotenv
-from telegram import Update
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import (
     ApplicationHandlerStop,
-    MessageHandler, 
-    filters,
     ApplicationBuilder,
     ContextTypes,
     CommandHandler,
@@ -17,29 +15,14 @@ from telegram.ext import (
 )
 from settingsMenu import (
     settings, 
-    reset_selected, 
-    option_selected, 
-    provider_selected, 
-    model_selected, 
-    temperature_entered, 
-    max_tokens_entered, 
-    n_entered, 
-    start_prompt_entered,
-    back_to_settings,
-    SELECTING_OPTION,
-    SELECTING_PROVIDER,
-    SELECTING_MODEL,
-    ENTERING_TEMPERATURE,
-    ENTERING_MAX_TOKENS,
-    ENTERING_N,
-    ENTERING_START_PROMPT,
-    SELECT_RESET,
+    settings_menu_handler,
     kill_connection as settings_kill_connection
     )
 from chatting import (
     start_keyboard,
     show_chats,
     get_chat_handlers,
+    del_chat,
     kill_connection as chat_kill_connection
 )
 
@@ -80,12 +63,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        InlineKeyboardButton("Start", callback_data="back_to_main")
+    ]
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text="""
-        Here are the available commands: \n/start \n/help\n/settings \n/reset\n/exit""",
+        <b><u>Help</u></b> \nHere are the available commands: \n/start \n/help\n/settings""",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup([keyboard])
     )
-    return SELECTING_OPTION
+
 
 
 
@@ -98,28 +86,7 @@ def main() -> None:
     # Settings menu handler
     settings_handler = ConversationHandler(
         entry_points=[CommandHandler("settings", settings), CallbackQueryHandler(settings, pattern="^settings$")],
-        states={
-            SELECTING_OPTION: [CallbackQueryHandler(option_selected)],
-            SELECTING_PROVIDER: [CallbackQueryHandler(provider_selected)],
-            SELECTING_MODEL: [CallbackQueryHandler(model_selected)],
-            ENTERING_TEMPERATURE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, temperature_entered),
-                CallbackQueryHandler(back_to_settings, pattern="^back_to_settings$")
-            ],
-            ENTERING_MAX_TOKENS: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, max_tokens_entered),
-                CallbackQueryHandler(back_to_settings, pattern="^back_to_settings$")
-                ],
-            ENTERING_N: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, n_entered),
-                CallbackQueryHandler(back_to_settings, pattern="^back_to_settings$")
-                ],
-            ENTERING_START_PROMPT: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, start_prompt_entered),
-                CallbackQueryHandler(back_to_settings, pattern="^back_to_settings$")
-                ],
-            SELECT_RESET: [CallbackQueryHandler(reset_selected)]
-        },
+        states=settings_menu_handler(),
         fallbacks=[CommandHandler("cancel", start)],
         per_message=False
     )
@@ -146,7 +113,6 @@ def main() -> None:
     application.add_handler(select_help)
     application.add_handler(chat_menu_handler)
     application.add_handler(select_chat)
-    # application.add_handler(chat_handler)
     
     
     

@@ -1,4 +1,5 @@
 # Importing required libraries
+import sqlite3
 import os
 import base64
 from typing import Final
@@ -30,6 +31,11 @@ openai = OpenAI()
 
 # Create an instance of the Anthropic API
 anthropic = AsyncAnthropic(api_key=CLAUDE_API_KEY)
+
+# Initialize sqlite database to store and retrieve the chat history
+conn_chats = sqlite3.connect('chats.db')
+
+c = conn_chats.cursor()
 
 # Message List Builder
 def build_message_list(message_type, message, role, cur_list=[]) -> list:
