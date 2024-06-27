@@ -39,12 +39,14 @@ c = conn_chats.cursor()
 
 # Message List Builder
 def build_message_list(message_type, message, role, cur_list=[]) -> list:
-    cur_list.append({
+    if message_type == 'text':
+        cur_list.append({
         "role": role, 
         "content": [
-            {"type": message_type, "text": message}
+            {"type": message_type, f"{message_type}": message}
             ]
         })
+    # TODO to implement image history 
     return cur_list
 
 # Define to interact with OpenAI GPT
@@ -56,9 +58,7 @@ def chat_with_gpt(messages, model='gpt-3.5-turbo', temperature=0.5, max_tokens=1
         temperature=temperature,  # Control the randomness of the response
         n=n,  # Generate a single response
     )
-    # return response.choices[0].message.content.strip()
-    print("GPT: " + response)
-    return response
+    return process_response_from_openai(response)
 
 # function to interact with Claude
 def chat_with_claude(messages, model='claude-3-haiku-20240307', temperature=0.5, max_tokens=100, system="") -> str:
@@ -107,3 +107,14 @@ def process_response_for_telegram_style(response):
     # Ensures response is in the MarkdownV2 format that Telegram has required while maintaining formatting, not just escaping everything
     response = response.replace('[', '\\[').replace(']', '\\]').replace('(', '\\(').replace(')', '\\)').replace('#', '\\#').replace('+', '\\+').replace('-', '\\-').replace('=', '\\=').replace('{', '\\{').replace('}', '\\}').replace('.', '\\.').replace('!', '\\!') # .replace('_', '\\_').replace('*', '\\*').replace('~', '\\~').replace('`', '\\`').replace('>', '\\>').replace('|', '\\|')
     return response
+
+def process_response_from_openai(response):
+    input_tokens = response.usage.prompt_tokens
+    output_tokens = response.usage.completion_tokens
+    role = response.choices[0].message.role.strip()
+    message = response.choices[0].message.content.strip()
+    print(message)
+    message = message.replace('<a>', '').replace('</a>', '').replace('<article>', '').replace('</article>', '').replace('<p>', '').replace('</p>', '').replace('<br>', '\n').replace('<li>', '\n- ').replace('</li>', '').replace('<sup>', '').replace('</sup>', '').replace('<sub>', '').replace('</sub>', '').replace('<abbr title>','').replace('</abbr', '').replace('<small>','').replace('</small', '').replace('<ul>','').replace('</ul>','')
+    message = message.replace('<h1>', '<b><u>').replace('</h1>', '</u></b>').replace('<h2>', '<b>').replace('</h2>', '</b>').replace('<h3>', '<u>').replace('</h3>', '</u>').replace('<h4>', '<i>').replace('</h4>', '</i>').replace('<h5>', '').replace('</h5>', '').replace('<h6>', '').replace('</h6>', '').replace('<big>', '<b>').replace('</big>', '</b>')
+
+    return input_tokens, output_tokens, role, message

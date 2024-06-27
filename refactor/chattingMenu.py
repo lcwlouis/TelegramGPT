@@ -4,6 +4,8 @@ import base64
 from typing import Final
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler, MessageHandler, filters
+from backend import build_message_list, chat_with_gpt, chat_with_claude
+from settingsMenu import get_current_settings
 
 # Define conversation states
 SELECTING_CHAT, CREATE_NEW_CHAT, CHATTING = range(3)
@@ -28,6 +30,7 @@ c.execute('''
     CREATE TABLE IF NOT EXISTS chat_history (
         chat_id INTEGER,
         message_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        type TEXT DEFAULT 'text',
         message TEXT,
         role TEXT,
         FOREIGN KEY (chat_id) REFERENCES chats(id)
@@ -101,42 +104,71 @@ async def open_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Print the chat history if there is any
     c.execute("SELECT message, role FROM chat_history WHERE chat_id = ?", (chat_id,))
     chat_history = c.fetchall()
-    print(f"Chat History: {chat_history}")
     if chat_history:
         for message, role in chat_history:
+            print(f"{role}: {message}")
             if role == 'user':
-                await query.message.reply_text(f"<b>You</b>: {message}", parse_mode="HTML")
+                await query.message.reply_text(f"<b>You</b>: \n{message}", parse_mode="HTML")
             elif role == 'assistant':
-                await query.message.reply_text(f"<b>Academic Weapon</b>: {message}", parse_mode="HTML")
+                await query.message.reply_text(f"<b>Academic Weapon</b>: \n{message}", parse_mode="HTML")
             else:
                 pass
     else:
         pass
     return CHATTING
 
+def check_if_chat_history_exists(chat_id: int, SYSTEM_PROMPT: str) -> None:
+    c.execute("SELECT COUNT(*) FROM chat_history WHERE chat_id = ?", (chat_id,))
+    count = c.fetchone()[0]
+    if count == 0:
+        # If chat history is empty add system prompt to chat history
+        c.execute("INSERT INTO chat_history (chat_id, message, role) VALUES (?, ?, ?)", 
+                  (chat_id, SYSTEM_PROMPT, 'system'))
+        conn_chats.commit()
+        print(f"Chat history for chat {chat_id} created")
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
     chat_id = context.user_data.get('current_chat_id')
-    
-    if not chat_id:
-        await update.message.reply_text("Please select or create a chat first.")
-        return await show_chats(update, context)
+    user_id = update.effective_user.id
+    # Get current settings
+    _, provider, model, temperature, max_tokens, n, start_prompt = get_current_settings(user_id)
+    # Check if chat history is empty for the current chat
+    check_if_chat_history_exists(chat_id, start_prompt)
     
     # Save user message to database
     c.execute("INSERT INTO chat_history (chat_id, message, role) VALUES (?, ?, ?)", 
               (chat_id, user_message, 'user'))
     conn_chats.commit()
     
-    # Here you would typically generate a response using your AI model
-    # For now, we'll just echo the message
-    response = f"Echo: {user_message}"
+    # Retrieve chat history
+    c.execute("SELECT type, message, role FROM chat_history WHERE chat_id = ? ORDER BY rowid", (chat_id,))
+    chat_history = c.fetchall()
+    
+    # Format chat history for AI model
+    messages = []
+    for type, message, role in chat_history:
+        messages = build_message_list(type, message, role, messages)
+
+    # Generate AI response
+    if provider == 'openai':
+        bot_message = await update.message.reply_text("working hard...")
+        input_tokens, output_tokens, role, message = chat_with_gpt(messages, model=model, temperature=temperature, max_tokens=max_tokens, n=n)
+    elif provider == 'claude':
+        # Remove system prompt from messages
+        messages = messages[1:]
+        response = await chat_with_claude(messages, model=model, temperature=temperature, max_tokens=max_tokens, sys=start_prompt)
+    else:
+        response = "Error: Invalid AI provider"
     
     # Save AI response to database
     c.execute("INSERT INTO chat_history (chat_id, message, role) VALUES (?, ?, ?)", 
-              (chat_id, response, 'assistant'))
+              (chat_id, message, role))
     conn_chats.commit()
+
+    reply = f"<b>Academic Weapon</b>: \n{message} \n\n <i>Used {input_tokens} input tokens and {output_tokens} output tokens</i>"
     
-    await update.message.reply_text(response)
+    await bot_message.edit_text(reply, parse_mode="HTML")
     return CHATTING
 
 async def end_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -188,8 +220,3 @@ def get_chat_handlers():
 def kill_connection():
     conn_chats.close()
     print("Chat DB Connection Closed")
-
-
-# Testing by adding some messages into the database
-c.execute("INSERT INTO chat_history (chat_id, message, role) VALUES (?, ?, ?)", (2, "Hello, how are you?", 'system'))
-conn_chats.commit()

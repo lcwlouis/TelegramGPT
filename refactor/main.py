@@ -18,11 +18,10 @@ from settingsMenu import (
     settings_menu_handler,
     kill_connection as settings_kill_connection
     )
-from chatting import (
+from chattingMenu import (
     start_keyboard,
     show_chats,
     get_chat_handlers,
-    del_chat,
     kill_connection as chat_kill_connection
 )
 
@@ -69,7 +68,14 @@ async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text="""
-        <b><u>Help</u></b> \nHere are the available commands: \n/start \n/help\n/settings""",
+        <b><u>Help</u></b> 
+        \nHere are the available commands: 
+        \n/start - Brings you to starting menu 
+        \n/help - Brings you here. 
+        \n/settings - Enter Settings Menu 
+        \n/end - Ends the current conversation (Only use in a Conversation)
+        \n/delete - Deletes the current conversation (Only use in a Conversation)
+        """,
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup([keyboard])
     )

@@ -322,6 +322,18 @@ def settings_menu_handler():
             SELECT_RESET: [CallbackQueryHandler(reset_selected)]
         }
 
+def get_current_settings(user_id):
+    c.execute('SELECT * FROM user_preferences WHERE user_id = ?', (user_id,))
+    row = c.fetchone()
+    if row is not None:
+        return row
+    else:
+        c.execute('INSERT INTO user_preferences (user_id) VALUES (?)', (user_id,))
+        conn_settinngs.commit()
+        c.execute('SELECT * FROM user_preferences WHERE user_id = ?', (user_id,))
+        row = c.fetchone()
+    return row
+
 def kill_connection():
     conn_settinngs.close()
     print("Settings DB Connection Closed")
