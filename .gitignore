@@ -5,3 +5,4 @@ __pycache__/
 .DS_Store
 python-telegram-bot python-telegram-bot master examples
 .venv
+system_prompt.txt
