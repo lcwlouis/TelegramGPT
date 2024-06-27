@@ -6,12 +6,10 @@ This is a simple telegram bot that allows an verified user id to access GPT or G
 
 
 ## To Do List
-- Implement commands
-- Admin functions
 - Add access to Gemini by Google
-- Add chat options
-- Add number of chats
+- Add access to Claude by Anthropic
 - Add image generation
+- Add embeddings
 
 ## How to use
 1. Clone the repository
@@ -21,6 +19,7 @@ This is a simple telegram bot that allows an verified user id to access GPT or G
 TELEGRAM_BOT_TOKEN=YOUR_TELEGRAM_BOT_TOKEN
 TELEGRAM_WHITELISTED_ID=YOUR_TELEGRAM
 OPENAI_API_KEY=YOUR_OPENAI_API_KEY
+CLAUDE_API_KEY=YOUR_ANTHROPIC_API_KEY
 TELEGRAM_BOT_USERNAME=YOUR_TELEGRAM_BOT_USERNAME
 ```
 4. Run the bot using `pymon main.py`
