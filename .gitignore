@@ -1,5 +1,6 @@
 .env
 __pycache__/
+old_sys_prompts
 .DS_Store
 system_prompt.txt
 chats.db

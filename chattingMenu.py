@@ -1,8 +1,9 @@
 import logging
 import sqlite3
+import base64
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler, MessageHandler, filters
-from backend import build_message_list, chat_with_gpt, chat_with_claude
+from backend import build_message_list, chat_with_gpt, chat_with_claude, image_gen_with_openai
 from settingsMenu import get_current_settings
 
 # Define conversation states
@@ -20,7 +21,9 @@ c.execute('''
     CREATE TABLE IF NOT EXISTS chats
     (id INTEGER PRIMARY KEY AUTOINCREMENT,
      user_id INTEGER NOT NULL,
-     chat_title TEXT)
+     chat_title TEXT,
+     input_tokens INTEGER DEFAULT 0,
+     output_tokens INTEGER DEFAULT 0)
 ''')
 conn_chats.commit()
 # Create chat history table
@@ -37,7 +40,7 @@ c.execute('''
 conn_chats.commit()
 
 # Chats Menu 
-def start_keyboard():
+def start_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
         [InlineKeyboardButton("Show Chats", callback_data="show_chats")],
         [InlineKeyboardButton("Settings", callback_data="settings")],
@@ -59,7 +62,10 @@ async def show_chats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    message_text = "Select a chat or create a new one:"
+    if len(chats) > 0:
+        message_text = "Select a previous chat or create a new one:"
+    else:
+        message_text = "No chats found. Create a new one:"
     
     if update.callback_query:
         await update.callback_query.answer()
@@ -72,7 +78,8 @@ async def show_chats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def create_new_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.callback_query.answer()
     await update.callback_query.edit_message_text(
-        text="Please enter the name of the new chat:",
+        text="<b>Give your chat a name!</b> (E.g. \"How to cook scrambled eggs\"):",
+        parse_mode="HTML"
     )
     return CREATE_NEW_CHAT
 
@@ -86,7 +93,7 @@ async def save_new_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"New chat '{chat_title}' created successfully!")
     return await show_chats(update, context)
 
-async def open_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def open_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     chat_id = int(query.data.split('_')[-1])
     
@@ -97,20 +104,34 @@ async def open_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['current_chat_title'] = chat_title
     
     await query.answer()
-    await query.edit_message_text(f"You are now chatting in: {chat_title}\nType your message or /end to finish the chat.")
+    await query.edit_message_text(f"You are now chatting in: {chat_title}")
     
     # Print the chat history if there is any
-    c.execute("SELECT message, role FROM chat_history WHERE chat_id = ?", (chat_id,))
+    c.execute("SELECT type, message, role FROM chat_history WHERE chat_id = ?", (chat_id,))
     chat_history = c.fetchall()
+    c.execute("SELECT input_tokens, output_tokens FROM chats WHERE id = ?", (chat_id,))
+    row = c.fetchone()
+    input_tokens, output_tokens = row
     if chat_history:
-        for message, role in chat_history:
-            print(f"{role}: {message}")
+        for message_type, message, role in chat_history:
+            # print(f"{role}: {message}") # DEBUG_USE
             if role == 'user':
                 await query.message.reply_text(f"<b>You</b>: \n{message}", parse_mode="HTML")
             elif role == 'assistant':
-                await query.message.reply_text(f"<b>Academic Weapon</b>: \n{message}", parse_mode="HTML")
+                if message_type == 'text':
+                    try:
+                        await query.message.reply_text(f"<b>Academic Weapon</b>: \n{message}", parse_mode="HTML")
+                    except Exception as e:
+                        await query.message.reply_text(f"Error formatting the message: \n{message}")
+                if message_type == 'image_url':
+                    try:
+                        decoded_bytes = base64.b64decode(message)
+                        await query.message.reply_photo(decoded_bytes)
+                    except Exception as e:
+                        await query.message.reply_text(f"Error sending the image")
             else:
                 pass
+        await query.message.reply_text(f"Type your message or /end to save and leave this conversation. \nCurrent usage of tokens(I/O): <code>{input_tokens}</code> / <code>{output_tokens}</code>", parse_mode="HTML")
     else:
         pass
     return CHATTING
@@ -123,7 +144,7 @@ def check_if_chat_history_exists(chat_id: int, SYSTEM_PROMPT: str) -> None:
         c.execute("INSERT INTO chat_history (chat_id, message, role) VALUES (?, ?, ?)", 
                   (chat_id, SYSTEM_PROMPT, 'system'))
         conn_chats.commit()
-        print(f"Chat history for chat {chat_id} created")
+        # print(f"Chat history for chat {chat_id} created") DEBUG_USE
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
@@ -150,7 +171,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Generate AI response
     if provider == 'openai':
-        bot_message = await update.message.reply_text("working hard...")
+        bot_message = await update.message.reply_text("Working hard...")
         input_tokens, output_tokens, role, message = chat_with_gpt(messages, model=model, temperature=temperature, max_tokens=max_tokens, n=n)
     elif provider == 'claude':
         # Remove system prompt from messages
@@ -163,11 +184,72 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     c.execute("INSERT INTO chat_history (chat_id, message, role) VALUES (?, ?, ?)", 
               (chat_id, message, role))
     conn_chats.commit()
-
-    reply = f"<b>Academic Weapon</b>: \n{message} \n\n <i>Used {input_tokens} input tokens and {output_tokens} output tokens</i>"
     
-    await bot_message.edit_text(reply, parse_mode="HTML")
+    # Get current token counts from database
+    c.execute('SELECT input_tokens, output_tokens FROM chats WHERE id = ?', (chat_id,))
+    row = c.fetchone()
+    total_input_tokens, total_output_tokens = row
+
+    # Update token counts in database
+    total_input_tokens += input_tokens
+    total_output_tokens += output_tokens
+    c.execute('UPDATE chats SET input_tokens = ?, output_tokens = ? WHERE id = ?', (total_input_tokens, total_output_tokens, chat_id))
+    conn_chats.commit()
+
+    reply = f"<b>Academic Weapon</b>: \n{message} \n ------------------- \n<i>Input: {input_tokens} tokens  Output: {output_tokens} tokens</i> \n<i>Total input used: {total_input_tokens} tokens  Total output used: {total_output_tokens} tokens</i>"
+    
+    try:
+        await bot_message.edit_text(reply, parse_mode="HTML")
+    except Exception as e:
+        await bot_message.reply_text(f"Message unable to format properly: {message}")
     return CHATTING
+
+async def gen_image(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    chat_id = context.user_data.get('current_chat_id')
+    # Extract prompt from behind /image command
+    prompt = update.message.text.split(' ', 1)[1]
+    print(prompt)
+    stored_message = "Generate an image prompt: " + prompt
+    
+    # Save user message to database
+    c.execute("INSERT INTO chat_history (chat_id, message, role) VALUES (?, ?, ?)", 
+              (chat_id, stored_message, 'user'))
+    conn_chats.commit()
+
+    # Retrieve chat history of up to the latest 2 messages for the current chat
+    c.execute("SELECT type, message, role FROM chat_history WHERE chat_id = ? ORDER BY rowid DESC LIMIT 3", (chat_id,))
+    chat_history = c.fetchall()
+    
+    # Format chat history for AI model
+    messages = []
+    for type, message, role in chat_history:
+        messages = build_message_list(type, message, role, messages)
+
+    # Call dalle API
+    img_base64 = await image_gen_with_openai(prompt=prompt, model='dall-e-2',n=1, size="256x256")
+
+    if img_base64:
+        # Save AI response to database in base64 format
+        c.execute("INSERT INTO chat_history (chat_id, type, message, role) VALUES (?, ?, ?, ?)",
+                  (chat_id, 'image_url', img_base64, 'assistant'))
+        conn_chats.commit()
+
+        # Convert base64 to bytes
+        img_bytes = base64.b64decode(img_base64)
+
+        # Send the image
+        await update.message.reply_photo(photo=img_bytes)
+    else:
+        await update.message.reply_text("Sorry, I couldn't generate the image. Please try again.")
+
+    return CHATTING
+
+    # # Save AI response to database in base64 format
+    # c.execute("INSERT INTO chat_history (chat_id, type, message, role) VALUES (?, ?, ?, ?)",
+    #           (chat_id, 'image_url', img_base64, 'assistant'))
+    # conn_chats.commit()
+
+    # await update.message.send_photo(img_base64)
 
 async def end_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     del context.user_data['current_chat_id']
@@ -182,7 +264,7 @@ async def del_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     c.execute("DELETE FROM chats WHERE id = ?", (chat_id,))
     conn_chats.commit()
     
-    print(f"Chat {chat_id} deleted successfully!")
+    # print(f"Chat {chat_id} deleted successfully!") DEBUG_USE
 
     if update.callback_query:
         await update.callback_query.answer()
@@ -210,6 +292,7 @@ def get_chat_handlers():
         ],
         CHATTING: [
             MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message),
+            CommandHandler("image", gen_image),
             CommandHandler("end", end_chat),
             CommandHandler("delete", del_chat),
         ],

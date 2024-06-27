@@ -1,5 +1,4 @@
 import logging
-import sqlite3
 import os
 from typing import Final
 from dotenv import load_dotenv
@@ -38,30 +37,27 @@ load_dotenv()
 
 # Telegram bot token
 TOKEN: Final = os.getenv('TELEGRAM_BOT_TOKEN')
-BOT_USERNAME: Final = os.getenv('TELEGRAM_BOT_USERNAME')
+# BOT_USERNAME: Final = os.getenv('TELEGRAM_BOT_USERNAME') # Not used
 
 # Load whitelisted telegram ids
-whitelisted_telegram_id = [int(id) for id in os.getenv('TELEGRAM_WHITELISTED_ID').split(',')]
+whitelisted_telegram_id = [int(id) for id in os.getenv('TELEGRAM_WHITELISTED_IDS').split(',')]
 
-# Defining states
-SELECT_CHAT, SELECT_SETTINGS, SELECT_HELP = range(3)
-
-async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_user.id in whitelisted_telegram_id:
         pass
     else:
-        await update.effective_message.reply_text("Hey! You are not allowed to use me!")
+        await update.effective_message.reply_text(f"Hey! You are not allowed to use me! Ask the admin to add ur user id: <code>{update.effective_user.id}</code>", parse_mode="HTML")
         raise ApplicationHandlerStop
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text=f"<b><u>Welcome {update.effective_user.first_name}!</u></b> Welcome to the your cheaper version of ChatGPT. \n\n <u>Select the following options to get started</u>:",
+        text=f"<b><u>Hello {update.effective_user.first_name}</u></b>! Welcome to the Academic Weapon, I am here to answer your questions about anything. \n\n<u>Select the following options to get started</u>:",
         reply_markup=start_keyboard(),
         parse_mode="HTML"
     )
 
-async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     keyboard = [
         InlineKeyboardButton("Start", callback_data="back_to_main")
     ]
@@ -69,20 +65,17 @@ async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat_id=update.effective_chat.id,
         text="""
         <b><u>Help</u></b> 
-        \nHere are the available commands: 
-        \n/start - Brings you to starting menu 
-        \n/help - Brings you here. 
-        \n/settings - Enter Settings Menu 
-        \n/end - Ends the current conversation (Only use in a Conversation)
-        \n/delete - Deletes the current conversation (Only use in a Conversation)
+        Here are the available commands: 
+        /start - Brings you to starting menu
+        /help - Brings you here. 
+        /settings - Enter Settings Menu 
+        /image [prompt] - Generates an image (Only use in a Conversation)
+        /end - Ends the current conversation (Only use in a Conversation)
+        /delete - Deletes the current conversation (Only use in a Conversation)
         """,
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup([keyboard])
     )
-
-
-
-
 
 # Main
 def main() -> None:
@@ -105,7 +98,6 @@ def main() -> None:
         per_message=False
     )
 
-
     # Start menu items
     select_chat = CallbackQueryHandler(show_chats, pattern="^show_chats$")
     select_help = CallbackQueryHandler(help, pattern="^help$")
@@ -119,8 +111,6 @@ def main() -> None:
     application.add_handler(select_help)
     application.add_handler(chat_menu_handler)
     application.add_handler(select_chat)
-    
-    
     
     # Start the bot
     print("Bot polling, will exit on Ctrl+C and continue posting updates if there are warnings or errors")

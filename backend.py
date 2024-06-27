@@ -2,6 +2,9 @@
 import sqlite3
 import os
 import base64
+import aiohttp
+from io import BytesIO
+from PIL import Image
 from typing import Final
 from anthropic import AsyncAnthropic
 from openai import OpenAI
@@ -72,25 +75,39 @@ def chat_with_claude(messages, model='claude-3-haiku-20240307', temperature=0.5,
     print("Claude: " + response)
     return response
 
-# Function to handle input (for text generation) from the user
-def handle_input_text(user_message, model, temperature, max_tokens, n, stop, chat_history=[]):
-    # add message into chat history
-    chat_history.append({"role": "user", "content": user_message})
-
-    # Generate a response using GPT-4
-    response = chat_with_gpt(chat_history, model=model, temperature=temperature, max_tokens=max_tokens, n=n, stop=stop)
-    
-    chat_history.append({"role": "system", "content": response})
-    
-    # Process response for Telegram style
-    response = process_response_for_telegram_style(response)
-
-    # Return the response
-    return response
-
+# function to interact with openai's dalle
+async def image_gen_with_openai(prompt, model='dall-e-3',n=1, size="1024x1024") -> str:
+    response = openai.images.generate(
+        model=model,
+        prompt=prompt,
+        n=n,
+        size=size
+    )
+    # Download the file and convert to base64
+    image_url = response.data[0].url
+    # DEBUG PLACEHOLDER URL
+    # image_url = "https://www.gstatic.com/webp/gallery/1.jpg"
+    # if response.data:
+    if image_url:
+        # image_url = response.data[0].url
+        async with aiohttp.ClientSession() as session:
+            async with session.get(image_url) as resp:
+                if resp.status == 200:
+                    image_data = await resp.read()
+                    image = Image.open(BytesIO(image_data))
+                    buffered = BytesIO()
+                    image.save(buffered, format="jpeg")
+                    img_str = base64.b64encode(buffered.getvalue()).decode()
+                    return img_str
+                else:
+                    print(f"Failed to download image: HTTP {resp.status}")
+                    return None
+    else:
+        print("No image data in the response")
+        return None
 
 # Function to get the available models
-def get_available_openai_models():
+def get_available_openai_models() -> list:
     response = openai.models.list()
     available_models = []
     for model in response.data:
@@ -99,21 +116,20 @@ def get_available_openai_models():
     available_models = sorted([model for model in available_models if 'gpt' in model])
     return available_models
 
-def get_available_claude_models():
+def get_available_claude_models() -> list:
     available_models = ANTHROPIC_MODELS
     return available_models
 
-def process_response_for_telegram_style(response):
+def process_response_for_telegram_style(response) -> str:
     # Ensures response is in the MarkdownV2 format that Telegram has required while maintaining formatting, not just escaping everything
     response = response.replace('[', '\\[').replace(']', '\\]').replace('(', '\\(').replace(')', '\\)').replace('#', '\\#').replace('+', '\\+').replace('-', '\\-').replace('=', '\\=').replace('{', '\\{').replace('}', '\\}').replace('.', '\\.').replace('!', '\\!') # .replace('_', '\\_').replace('*', '\\*').replace('~', '\\~').replace('`', '\\`').replace('>', '\\>').replace('|', '\\|')
     return response
 
-def process_response_from_openai(response):
+def process_response_from_openai(response) -> tuple:
     input_tokens = response.usage.prompt_tokens
     output_tokens = response.usage.completion_tokens
     role = response.choices[0].message.role.strip()
     message = response.choices[0].message.content.strip()
-    print(message)
     message = message.replace('<a>', '').replace('</a>', '').replace('<article>', '').replace('</article>', '').replace('<p>', '').replace('</p>', '').replace('<br>', '\n').replace('<li>', '\n- ').replace('</li>', '').replace('<sup>', '').replace('</sup>', '').replace('<sub>', '').replace('</sub>', '').replace('<abbr title>','').replace('</abbr', '').replace('<small>','').replace('</small', '').replace('<ul>','').replace('</ul>','')
     message = message.replace('<h1>', '<b><u>').replace('</h1>', '</u></b>').replace('<h2>', '<b>').replace('</h2>', '</b>').replace('<h3>', '<u>').replace('</h3>', '</u>').replace('<h4>', '<i>').replace('</h4>', '</i>').replace('<h5>', '').replace('</h5>', '').replace('<h6>', '').replace('</h6>', '').replace('<big>', '<b>').replace('</big>', '</b>')
 
