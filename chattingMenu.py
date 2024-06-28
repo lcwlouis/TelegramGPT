@@ -7,7 +7,7 @@ from backend import build_message_list, chat_with_gpt, chat_with_claude, image_g
 from settingsMenu import get_current_settings
 
 # Define conversation states
-SELECTING_CHAT, CREATE_NEW_CHAT, CHATTING, SELECTING_SETTINGS, SELECTING_HELP = range(5)
+SELECTING_CHAT, CREATE_NEW_CHAT, CHATTING, HELP = range(4)
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
@@ -41,6 +41,8 @@ conn_chats.commit()
 
 # Define start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from main import cleanup
+    await cleanup(update, context)
     return await show_chats(update, context)
 
 # Chats Menu 
@@ -57,6 +59,7 @@ async def show_chats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     keyboard.append([InlineKeyboardButton("🆕New Chat", callback_data="create_new_chat")])
     keyboard.append([InlineKeyboardButton("⚙️Settings", callback_data="settings")])
     keyboard.append([InlineKeyboardButton("❓Help", callback_data="help")])
+    keyboard.append([InlineKeyboardButton("🚫Exit", callback_data="exit_menu")])
 
     reply_markup = InlineKeyboardMarkup(keyboard)
     
@@ -70,7 +73,9 @@ async def show_chats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         query = update.callback_query
         await query.message.edit_text(text=message_text, reply_markup=reply_markup, parse_mode="HTML")
         return SELECTING_CHAT
-    await update.message.reply_text(text=message_text, reply_markup=reply_markup, parse_mode="HTML")
+    # Edit existing /start message
+    message = await update.message.reply_text(text=message_text, reply_markup=reply_markup, parse_mode="HTML")
+    context.user_data.setdefault('sent_messages', []).append(message.message_id)
     # if update.callback_query:
     #     await update.callback_query.answer()
     #     await update.callback_query.edit_message_text(text=message_text, reply_markup=reply_markup)
@@ -129,22 +134,28 @@ async def open_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         for message_type, message, role in chat_history:
             # print(f"{role}: {message}") # DEBUG_USE
             if role == 'user':
-                await query.message.reply_text(f"<b>You</b>: \n{message}", parse_mode="HTML")
+                add_to_message_list = await query.message.reply_text(f"<b>You</b>: \n{message}", parse_mode="HTML")
+                context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
             elif role == 'assistant':
                 if message_type == 'text':
                     try:
-                        await query.message.reply_text(f"<b>Academic Weapon</b>: \n{message}", parse_mode="HTML")
+                        add_to_message_list = await query.message.reply_text(f"<b>Academic Weapon</b>: \n{message}", parse_mode="HTML")
+                        context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
                     except Exception as e:
-                        await query.message.reply_text(f"Error formatting the message: \n{message}")
+                        add_to_message_list = await query.message.reply_text(f"Error formatting the message: \n{message}")
+                        context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
                 if message_type == 'image_url':
                     try:
                         decoded_bytes = base64.b64decode(message)
-                        await query.message.reply_photo(decoded_bytes)
+                        add_to_message_list = await query.message.reply_photo(decoded_bytes)
+                        context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
                     except Exception as e:
-                        await query.message.reply_text(f"Error sending the image")
+                        add_to_message_list = await query.message.reply_text(f"Error sending the image")
+                        context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
             else:
                 pass
-        await query.message.reply_text(f"Type your message or /end to save and leave this conversation. \nCurrent usage of tokens(I/O): <code>{input_tokens}</code> / <code>{output_tokens}</code>", parse_mode="HTML")
+        add_to_message_list = await query.message.reply_text(f"Type your message or /end to save and leave this conversation. \nCurrent usage of tokens(I/O): <code>{input_tokens}</code> / <code>{output_tokens}</code>", parse_mode="HTML")
+        context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
     else:
         pass
     return CHATTING
@@ -170,7 +181,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat_id, chat_title = save_new_chat(user_message, user_id)
         context.user_data['current_chat_id'] = chat_id
         context.user_data['current_chat_title'] = chat_title
-        await update.message.reply_text(f"You are now chatting in: {chat_title}! You can save and exit using /end or /delete to delete the chat.")
+        message = await update.message.reply_text(f"You are now chatting in: {chat_title}! You can save and exit using /end or /delete to delete the chat.")
+        context.user_data.setdefault('sent_messages', []).append(message.message_id)
     else:
         pass
     # Check if chat history is empty for the current chat
@@ -193,6 +205,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Generate AI response
     if provider == 'openai':
         bot_message = await update.message.reply_text("Working hard...")
+        context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
         input_tokens, output_tokens, role, message = chat_with_gpt(messages, model=model, temperature=temperature, max_tokens=max_tokens, n=n)
     elif provider == 'claude':
         # Remove system prompt from messages
@@ -222,7 +235,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         await bot_message.edit_text(reply, parse_mode="HTML")
     except Exception as e:
-        await bot_message.reply_text(f"Message unable to format properly: {message}")
+        message = await bot_message.reply_text(f"Message unable to format properly: {message}")
+        context.user_data.setdefault('sent_messages', []).append(message.message_id)
     return CHATTING
 
 async def gen_image(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -260,19 +274,26 @@ async def gen_image(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         img_bytes = base64.b64decode(img_base64)
 
         # Send the image
-        await update.message.reply_photo(photo=img_bytes)
+        message = await update.message.reply_photo(photo=img_bytes)
     else:
-        await update.message.reply_text("Sorry, I couldn't generate the image. Please try again.")
+        message = await update.message.reply_text("Sorry, I couldn't generate the image. Please try again.")
+    
+    context.user_data.setdefault('sent_messages', []).append(message.message_id)
 
     return CHATTING
 
 async def end_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    from main import cleanup
     del context.user_data['current_chat_id']
     del context.user_data['current_chat_title']
-    await update.message.reply_text("Chat ended. Returning to chat selection.")
-    return await show_chats(update, context)
+    await cleanup(update, context)
+    message = await update.message.reply_text("Chat ended. Returning to chat selection.")
+    context.user_data.setdefault('sent_messages', []).append(message.message_id)
+    await show_chats(update, context)
+    return SELECTING_CHAT
 
 async def del_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    from main import cleanup
     chat_id = context.user_data.get('current_chat_id')
     
     c.execute("DELETE FROM chat_history WHERE chat_id = ?", (chat_id,))
@@ -286,22 +307,53 @@ async def del_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.callback_query.edit_message_text(f"Chat \"{context.user_data.get('current_chat_title')}\" deleted successfully!")
         del context.user_data['current_chat_id']
         del context.user_data['current_chat_title']
-        return await show_chats(update, context)
+        await cleanup(update, context)
+        await show_chats(update, context)
+        return SELECTING_CHAT
     else:
-        await update.message.reply_text(f"Chat \"{context.user_data.get('current_chat_title')}\" deleted successfully!")
+        message = await update.message.reply_text(f"Chat \"{context.user_data.get('current_chat_title')}\" deleted successfully!")
+        context.user_data.setdefault('sent_messages', []).append(message.message_id)
         del context.user_data['current_chat_id']
         del context.user_data['current_chat_title']
-        return await show_chats(update, context)
+        await cleanup(update, context)
+        await show_chats(update, context)
+        return SELECTING_CHAT
 
-
+async def show_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        InlineKeyboardButton("Start", callback_data="show_chats")
+    ]
+    help_message = """
+        <b><u>Help</u></b> 
+        Here are the available commands: 
+        /start - Brings you to starting menu
+        /help - Brings you here. 
+        /settings - Enter Settings Menu 
+        /image [prompt] - Generates an image (Only use in a Conversation)
+        /end - Ends the current conversation (Only use in a Conversation)
+        /delete - Deletes the current conversation (Only use in a Conversation)
+        """
+    if update.callback_query:
+        await update.callback_query.answer()
+        await update.callback_query.edit_message_text(help_message, parse_mode="HTML", reply_markup=InlineKeyboardMarkup([keyboard]))
+        return HELP
+    else:
+        message = await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=InlineKeyboardMarkup([keyboard]))
+        context.user_data.setdefault('sent_messages', []).append(message.message_id)
+        return HELP
 
 
 def get_chat_handlers():
     from settingsMenu import settings
+    from main import exit_menu
     return {
         SELECTING_CHAT: [
             CallbackQueryHandler(create_new_chat, pattern="^create_new_chat$"),
             CallbackQueryHandler(open_chat, pattern="^open_chat_"),
+            CallbackQueryHandler(settings, pattern="^settings$"),
+            CallbackQueryHandler(show_help, pattern="^help$"),
+            CallbackQueryHandler(exit_menu, pattern="^exit_menu$"),
+            CommandHandler("start", start),
         ],
         CREATE_NEW_CHAT: [
             MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message),
@@ -312,11 +364,9 @@ def get_chat_handlers():
             CommandHandler("end", end_chat),
             CommandHandler("delete", del_chat),
         ],
-        # SELECTING_SETTINGS: [
-        #     CallbackQueryHandler(settings, pattern="^settings$"),
-        # ],
-        SELECTING_HELP: [
-            CallbackQueryHandler(settings, pattern="^help$"),
+        HELP: [
+            CallbackQueryHandler(show_chats, pattern="^show_chats$"),
+            CommandHandler("start", start),
         ],
     }
 

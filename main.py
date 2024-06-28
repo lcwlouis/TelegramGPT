@@ -20,8 +20,14 @@ from settingsMenu import (
 from chattingMenu import (
     start,
     show_chats,
+    show_help,
     get_chat_handlers,
     kill_connection as chat_kill_connection
+)
+from user import (
+    add_user,
+    get_all_user_ids,
+    kill_connection as user_kill_connection
 )
 
 logging.basicConfig(
@@ -40,7 +46,15 @@ TOKEN: Final = os.getenv('TELEGRAM_BOT_TOKEN_DEV')
 # BOT_USERNAME: Final = os.getenv('TELEGRAM_BOT_USERNAME') # Not used
 
 # Load whitelisted telegram ids
+# admin_telegram_id = int(os.getenv('TELEGRAM_ADMIN_ID'))
 whitelisted_telegram_id = [int(id) for id in os.getenv('TELEGRAM_WHITELISTED_IDS').split(',')]
+for id in whitelisted_telegram_id:
+    add_user(id)
+
+whitelisted_telegram_id = get_all_user_ids()
+
+# Define shared states
+SELECTING_CHAT, CREATE_NEW_CHAT, CHATTING, RETURN_TO_MENU = range(4)
 
 async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
@@ -59,34 +73,25 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.effective_message.reply_text(f"Hey! You are not allowed to use me! Ask the admin to add ur user id: <code>{update.effective_user.id}</code>", parse_mode="HTML")
         raise ApplicationHandlerStop
 
-# async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-#     # await context.bot.send_message(
-#     #     chat_id=update.effective_chat.id,
-#     #     text=f"<b><u>Hello {update.effective_user.first_name}</u></b>! Welcome to the Universalis, I am here to answer your questions about anything. \n\n<u>Select the following options to get started</u>:",
-#     #     reply_markup=start_keyboard(),
-#     #     parse_mode="HTML"
-#     # )
-#     return await show_chats(update, context)
+async def cleanup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # Delete all messages before the next message
+    if 'sent_messages' in context.user_data:
+        for message_id in context.user_data['sent_messages']:
+            try:
+                await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=message_id)
+            except Exception as e:
+                logger.warning(f"Failed to delete message {message_id}: {e}")
+        context.user_data['sent_messages'] = []
 
-async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    keyboard = [
-        InlineKeyboardButton("Start", callback_data="back_to_main")
-    ]
-    await context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text="""
-        <b><u>Help</u></b> 
-        Here are the available commands: 
-        /start - Brings you to starting menu
-        /help - Brings you here. 
-        /settings - Enter Settings Menu 
-        /image [prompt] - Generates an image (Only use in a Conversation)
-        /end - Ends the current conversation (Only use in a Conversation)
-        /delete - Deletes the current conversation (Only use in a Conversation)
-        """,
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup([keyboard])
-    )
+async def exit_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await cleanup(update, context)
+    # Clear all user data
+    context.user_data.clear()
+    # Send a new message telling the user to /start
+    message = await context.bot.send_message(chat_id=update.effective_chat.id, text="Type /start to start again")
+    print(f"Sent message: {message.message_id}")
+    context.user_data.setdefault('sent_messages', []).append(message.message_id)
+    return ConversationHandler.END
 
 # Main
 def main() -> None:
@@ -97,31 +102,22 @@ def main() -> None:
     settings_handler = ConversationHandler(
         entry_points=[CommandHandler("settings", settings), CallbackQueryHandler(settings, pattern="^settings$")],
         states=settings_menu_handler(),
-        fallbacks=[CommandHandler("start", start)],
+        fallbacks=[CallbackQueryHandler(settings, pattern="^settings$")],
         per_message=False
     )
 
     # Chats menu
     chat_menu_handler = ConversationHandler(
-        entry_points=[CommandHandler("start", start), CallbackQueryHandler(start, pattern="^show_chats$")],
+        entry_points=[CommandHandler("start", start), CommandHandler("help", show_help), CallbackQueryHandler(show_chats, pattern="^show_chats$")],
         states=get_chat_handlers(),
-        fallbacks=[CallbackQueryHandler(start, pattern="^show_chats$")],
+        fallbacks=[CallbackQueryHandler(show_chats, pattern="^show_chats$")],
         per_message=False
     )
 
-    # Start menu items
-    # select_chat = CallbackQueryHandler(show_chats, pattern="^show_chats$")
-    select_help = CallbackQueryHandler(help, pattern="^help$")
-    
-    # start_cmd_handler = CommandHandler('start', start)
-    help_cmd_handler = CommandHandler('help', help)
+    # Add handlers
     application.add_handler(callback_handler, -1)
-    # application.add_handler(start_cmd_handler)
-    application.add_handler(help_cmd_handler)
-    application.add_handler(settings_handler)
-    application.add_handler(select_help)
     application.add_handler(chat_menu_handler)
-    # application.add_handler(select_chat)
+    application.add_handler(settings_handler)
     
     # Start the bot
     print("Bot polling, will exit on Ctrl+C and continue posting updates if there are warnings or errors")
@@ -130,6 +126,7 @@ def main() -> None:
     # On Ctrl+C exit
     chat_kill_connection()
     settings_kill_connection()
+    user_kill_connection()
     print("Bot polling closed. Exiting...")
 
 
