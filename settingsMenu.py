@@ -10,7 +10,7 @@ conn_settinngs = sqlite3.connect('user_preferences.db')
 COLUMNS: Final = 2
 
 # Define conversation states
-SELECTING_OPTION, SELECTING_MODEL, ENTERING_TEMPERATURE, ENTERING_MAX_TOKENS, ENTERING_N, ENTERING_START_PROMPT, SELECT_RESET, SELECTING_PROVIDER = range(8)
+SELECTING_OPTION, SELECTING_MODEL, ENTERING_TEMPERATURE, ENTERING_MAX_TOKENS, ENTERING_N, ENTERING_START_PROMPT, SELECT_RESET, SELECTING_PROVIDER = range(4, 12)
 
 # Default starting message from file system_prompt.txt
 DEFAULT_STARTING_MESSAGE = open('./system_prompt.txt', 'r').read()
@@ -102,10 +102,9 @@ async def option_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     option = query.data
     
     if option == "show_chats":
-        from chattingMenu import show_chats
-        await query.edit_message_text("Settings updated. /start to go back to the main menu.")
-        ConversationHandler.END
-        return show_chats(update, context)
+        from chattingMenu import start
+        await start(update, context)
+        return ConversationHandler.END
     elif option == "model":
         await query.edit_message_text(f"<b><u>Current GenAI Provider</u>: </b>{str(context.user_data['settings'][0])} \n<b><u>Current Model</u>: </b>{str(context.user_data['settings'][1])} \n\nSelect a provider:", reply_markup=provider_keyboard(), parse_mode="HTML")
         return SELECTING_PROVIDER
@@ -335,8 +334,6 @@ async def reset_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     return SELECTING_OPTION
 
 def settings_menu_handler():
-    from chattingMenu import show_chats
-    from main import RETURN_TO_MENU
     return {
         SELECTING_OPTION: [CallbackQueryHandler(option_selected)],
         SELECTING_PROVIDER: [CallbackQueryHandler(provider_selected)],
@@ -358,7 +355,6 @@ def settings_menu_handler():
             CallbackQueryHandler(back_to_settings, pattern="^back_to_settings$")
         ],
         SELECT_RESET: [CallbackQueryHandler(reset_selected)],
-        RETURN_TO_MENU: [CallbackQueryHandler(show_chats, pattern="^show_chats$")],
     }
 
 def get_current_settings(user_id) -> tuple:

@@ -7,7 +7,7 @@ from backend import build_message_list, chat_with_gpt, chat_with_claude, image_g
 from settingsMenu import get_current_settings
 
 # Define conversation states
-SELECTING_CHAT, CREATE_NEW_CHAT, CHATTING, HELP = range(4)
+SELECTING_CHAT, CREATE_NEW_CHAT, CHATTING, RETURN_TO_MENU = range(4)
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
@@ -43,6 +43,7 @@ conn_chats.commit()
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     from main import cleanup
     await cleanup(update, context)
+    context.user_data.clear()
     return await show_chats(update, context)
 
 # Chats Menu 
@@ -69,20 +70,16 @@ async def show_chats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         message_text = f"<b><u>Hello {update.effective_user.first_name}</u></b>! Welcome to the <b>Universalis</b>, I am here to answer your questions about anything. \n\n<u>Create a new chat</u>:\n==================================="
     
     # await context.bot.send_message(chat_id=update.effective_chat.id, text=message_text, reply_markup=reply_markup, parse_mode="HTML")
-    if update.message is None:
+    try:
         query = update.callback_query
         await query.message.edit_text(text=message_text, reply_markup=reply_markup, parse_mode="HTML")
         return SELECTING_CHAT
-    # Edit existing /start message
-    message = await update.message.reply_text(text=message_text, reply_markup=reply_markup, parse_mode="HTML")
-    context.user_data.setdefault('sent_messages', []).append(message.message_id)
-    # if update.callback_query:
-    #     await update.callback_query.answer()
-    #     await update.callback_query.edit_message_text(text=message_text, reply_markup=reply_markup)
-    # else:
-    #     await update.message.e(text=message_text, reply_markup=reply_markup)
-    
-    return SELECTING_CHAT
+    except:
+        # Edit existing /start message
+        message = await context.bot.send_message(chat_id=update.effective_chat.id, text=message_text, reply_markup=reply_markup, parse_mode="HTML")
+        context.user_data.setdefault('sent_messages', []).append(message.message_id)
+        
+        return SELECTING_CHAT
 
 async def create_new_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.callback_query.answer()
@@ -286,9 +283,9 @@ async def end_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     from main import cleanup
     del context.user_data['current_chat_id']
     del context.user_data['current_chat_title']
-    await cleanup(update, context)
     message = await update.message.reply_text("Chat ended. Returning to chat selection.")
     context.user_data.setdefault('sent_messages', []).append(message.message_id)
+    await cleanup(update, context)
     await show_chats(update, context)
     return SELECTING_CHAT
 
@@ -336,11 +333,11 @@ async def show_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.callback_query:
         await update.callback_query.answer()
         await update.callback_query.edit_message_text(help_message, parse_mode="HTML", reply_markup=InlineKeyboardMarkup([keyboard]))
-        return HELP
+        return RETURN_TO_MENU
     else:
         message = await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=InlineKeyboardMarkup([keyboard]))
         context.user_data.setdefault('sent_messages', []).append(message.message_id)
-        return HELP
+        return RETURN_TO_MENU
 
 
 def get_chat_handlers():
@@ -352,7 +349,6 @@ def get_chat_handlers():
             CallbackQueryHandler(open_chat, pattern="^open_chat_"),
             CallbackQueryHandler(show_help, pattern="^help$"),
             CallbackQueryHandler(exit_menu, pattern="^exit_menu$"),
-            CommandHandler("start", start),
         ],
         CREATE_NEW_CHAT: [
             MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message),
@@ -363,8 +359,8 @@ def get_chat_handlers():
             CommandHandler("end", end_chat),
             CommandHandler("delete", del_chat),
         ],
-        HELP: [
-            CallbackQueryHandler(show_chats, pattern="^show_chats$"),
+        RETURN_TO_MENU: [
+            CallbackQueryHandler(start, pattern="^show_chats$"),
             CommandHandler("start", start),
         ],
     }
