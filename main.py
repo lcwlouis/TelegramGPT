@@ -18,7 +18,7 @@ from settingsMenu import (
     kill_connection as settings_kill_connection
     )
 from chattingMenu import (
-    start_keyboard,
+    start,
     show_chats,
     get_chat_handlers,
     kill_connection as chat_kill_connection
@@ -36,26 +36,37 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 # Telegram bot token
-TOKEN: Final = os.getenv('TELEGRAM_BOT_TOKEN')
+TOKEN: Final = os.getenv('TELEGRAM_BOT_TOKEN_DEV')
 # BOT_USERNAME: Final = os.getenv('TELEGRAM_BOT_USERNAME') # Not used
 
 # Load whitelisted telegram ids
 whitelisted_telegram_id = [int(id) for id in os.getenv('TELEGRAM_WHITELISTED_IDS').split(',')]
 
 async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Asynchronous function that checks if the user ID is whitelisted on Telegram. If not, it replies with a message indicating the user is not allowed to use the bot and raises an ApplicationHandlerStop exception.
+
+    Parameters:
+    - update: Update object containing information about the user update
+    - context: ContextTypes.DEFAULT_TYPE object providing the context for the update
+
+    Returns:
+    - None
+    """
     if update.effective_user.id in whitelisted_telegram_id:
         pass
     else:
         await update.effective_message.reply_text(f"Hey! You are not allowed to use me! Ask the admin to add ur user id: <code>{update.effective_user.id}</code>", parse_mode="HTML")
         raise ApplicationHandlerStop
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text=f"<b><u>Hello {update.effective_user.first_name}</u></b>! Welcome to the Academic Weapon, I am here to answer your questions about anything. \n\n<u>Select the following options to get started</u>:",
-        reply_markup=start_keyboard(),
-        parse_mode="HTML"
-    )
+# async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+#     # await context.bot.send_message(
+#     #     chat_id=update.effective_chat.id,
+#     #     text=f"<b><u>Hello {update.effective_user.first_name}</u></b>! Welcome to the Universalis, I am here to answer your questions about anything. \n\n<u>Select the following options to get started</u>:",
+#     #     reply_markup=start_keyboard(),
+#     #     parse_mode="HTML"
+#     # )
+#     return await show_chats(update, context)
 
 async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     keyboard = [
@@ -86,31 +97,31 @@ def main() -> None:
     settings_handler = ConversationHandler(
         entry_points=[CommandHandler("settings", settings), CallbackQueryHandler(settings, pattern="^settings$")],
         states=settings_menu_handler(),
-        fallbacks=[CommandHandler("cancel", start)],
+        fallbacks=[CommandHandler("start", start)],
         per_message=False
     )
 
     # Chats menu
     chat_menu_handler = ConversationHandler(
-        entry_points=[CallbackQueryHandler(show_chats, pattern="^show_chats$")],
+        entry_points=[CommandHandler("start", start), CallbackQueryHandler(start, pattern="^show_chats$")],
         states=get_chat_handlers(),
-        fallbacks=[CallbackQueryHandler(start, pattern="^back_to_main$")],
+        fallbacks=[CallbackQueryHandler(start, pattern="^show_chats$")],
         per_message=False
     )
 
     # Start menu items
-    select_chat = CallbackQueryHandler(show_chats, pattern="^show_chats$")
+    # select_chat = CallbackQueryHandler(show_chats, pattern="^show_chats$")
     select_help = CallbackQueryHandler(help, pattern="^help$")
     
-    start_cmd_handler = CommandHandler('start', start)
+    # start_cmd_handler = CommandHandler('start', start)
     help_cmd_handler = CommandHandler('help', help)
     application.add_handler(callback_handler, -1)
-    application.add_handler(start_cmd_handler)
+    # application.add_handler(start_cmd_handler)
     application.add_handler(help_cmd_handler)
     application.add_handler(settings_handler)
     application.add_handler(select_help)
     application.add_handler(chat_menu_handler)
-    application.add_handler(select_chat)
+    # application.add_handler(select_chat)
     
     # Start the bot
     print("Bot polling, will exit on Ctrl+C and continue posting updates if there are warnings or errors")

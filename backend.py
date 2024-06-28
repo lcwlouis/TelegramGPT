@@ -1,4 +1,5 @@
 # Importing required libraries
+import re
 import sqlite3
 import os
 import base64
@@ -130,7 +131,7 @@ def process_response_from_openai(response) -> tuple:
     output_tokens = response.usage.completion_tokens
     role = response.choices[0].message.role.strip()
     message = response.choices[0].message.content.strip()
-    message = message.replace('<a>', '').replace('</a>', '').replace('<article>', '').replace('</article>', '').replace('<p>', '').replace('</p>', '').replace('<br>', '\n').replace('<li>', '\n- ').replace('</li>', '').replace('<sup>', '').replace('</sup>', '').replace('<sub>', '').replace('</sub>', '').replace('<abbr title>','').replace('</abbr', '').replace('<small>','').replace('</small', '').replace('<ul>','').replace('</ul>','')
+    message = re.sub(r'<(a|article|p|br|li|sup|sub|abbr|small|ul|/a|/article|/p|/li|/sup|/sub|/abbr|/small|/ul)>', '', message)
     message = message.replace('<h1>', '<b><u>').replace('</h1>', '</u></b>').replace('<h2>', '<b>').replace('</h2>', '</b>').replace('<h3>', '<u>').replace('</h3>', '</u>').replace('<h4>', '<i>').replace('</h4>', '</i>').replace('<h5>', '').replace('</h5>', '').replace('<h6>', '').replace('</h6>', '').replace('<big>', '<b>').replace('</big>', '</b>')
 
     return input_tokens, output_tokens, role, message

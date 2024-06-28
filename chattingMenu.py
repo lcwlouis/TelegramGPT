@@ -7,7 +7,7 @@ from backend import build_message_list, chat_with_gpt, chat_with_claude, image_g
 from settingsMenu import get_current_settings
 
 # Define conversation states
-SELECTING_CHAT, CREATE_NEW_CHAT, CHATTING = range(3)
+SELECTING_CHAT, CREATE_NEW_CHAT, CHATTING, SELECTING_SETTINGS, SELECTING_HELP = range(5)
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
@@ -39,15 +39,11 @@ c.execute('''
 ''')
 conn_chats.commit()
 
-# Chats Menu 
-def start_keyboard() -> InlineKeyboardMarkup:
-    keyboard = [
-        [InlineKeyboardButton("Show Chats", callback_data="show_chats")],
-        [InlineKeyboardButton("Settings", callback_data="settings")],
-        [InlineKeyboardButton("Help", callback_data="help")]
-    ]
-    return InlineKeyboardMarkup(keyboard)
+# Define start
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    return await show_chats(update, context)
 
+# Chats Menu 
 async def show_chats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.effective_user.id
     c.execute("SELECT id, chat_title FROM chats WHERE user_id = ?", (user_id,))
@@ -55,43 +51,60 @@ async def show_chats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     keyboard = []
     for chat_id, chat_title in chats:
+        chat_title = f"💬 {chat_title}"
         keyboard.append([InlineKeyboardButton(chat_title, callback_data=f"open_chat_{chat_id}")])
     
-    keyboard.append([InlineKeyboardButton("Create New Chat", callback_data="create_new_chat")])
-    keyboard.append([InlineKeyboardButton("Back to Main Menu", callback_data="back_to_main")])
+    keyboard.append([InlineKeyboardButton("🆕New Chat", callback_data="create_new_chat")])
+    keyboard.append([InlineKeyboardButton("⚙️Settings", callback_data="settings")])
+    keyboard.append([InlineKeyboardButton("❓Help", callback_data="help")])
 
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     if len(chats) > 0:
-        message_text = "Select a previous chat or create a new one:"
+        message_text = f"<b><u>Hello {update.effective_user.first_name}</u></b>! Welcome to the <b>Universalis</b>, I am here to answer your questions about anything. \n\n<u>Select a chat or create a new one</u>:\n==================================="
     else:
-        message_text = "No chats found. Create a new one:"
+        message_text = f"<b><u>Hello {update.effective_user.first_name}</u></b>! Welcome to the <b>Universalis</b>, I am here to answer your questions about anything. \n\n<u>Create a new chat</u>:\n==================================="
     
-    if update.callback_query:
-        await update.callback_query.answer()
-        await update.callback_query.edit_message_text(text=message_text, reply_markup=reply_markup)
-    else:
-        await update.message.reply_text(text=message_text, reply_markup=reply_markup)
+    # await context.bot.send_message(chat_id=update.effective_chat.id, text=message_text, reply_markup=reply_markup, parse_mode="HTML")
+    if update.message is None:
+        query = update.callback_query
+        await query.message.edit_text(text=message_text, reply_markup=reply_markup, parse_mode="HTML")
+        return SELECTING_CHAT
+    await update.message.reply_text(text=message_text, reply_markup=reply_markup, parse_mode="HTML")
+    # if update.callback_query:
+    #     await update.callback_query.answer()
+    #     await update.callback_query.edit_message_text(text=message_text, reply_markup=reply_markup)
+    # else:
+    #     await update.message.e(text=message_text, reply_markup=reply_markup)
     
     return SELECTING_CHAT
 
 async def create_new_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.callback_query.answer()
     await update.callback_query.edit_message_text(
-        text="<b>Give your chat a name!</b> (E.g. \"How to cook scrambled eggs\"):",
+        text="<b>What do you want to talk about?</b> (E.g. \"How to cook scrambled eggs\"):",
         parse_mode="HTML"
     )
     return CREATE_NEW_CHAT
 
-async def save_new_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    chat_title = update.message.text
+def save_new_chat(prompt, user_id):
+    # Generate a title for the new chat
+    title_prompt = open("title_system_prompt.txt", "r").read()
+    gen_prompt = "The user has asked: " + str(prompt)
+    messages = []
+    messages = build_message_list("text", title_prompt, "system", messages)
+    messages = build_message_list("text", gen_prompt, "user", messages)
+
+    response = chat_with_gpt(messages, model='gpt-3.5-turbo', temperature=1, max_tokens=10, n=1)
+    chat_title = response[3]
     
     c.execute("INSERT INTO chats (user_id, chat_title) VALUES (?, ?)", (user_id, chat_title))
     conn_chats.commit()
     
-    await update.message.reply_text(f"New chat '{chat_title}' created successfully!")
-    return await show_chats(update, context)
+    c.execute("SELECT id FROM chats WHERE user_id = ? AND chat_title = ?", (user_id, chat_title))
+    chat_id = c.fetchone()[0]
+
+    return chat_id, chat_title
 
 async def open_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
@@ -104,7 +117,7 @@ async def open_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['current_chat_title'] = chat_title
     
     await query.answer()
-    await query.edit_message_text(f"You are now chatting in: {chat_title}")
+    await query.edit_message_text(f"You are now chatting in: {chat_title}! You can save and exit using /end or /delete to delete the chat.")
     
     # Print the chat history if there is any
     c.execute("SELECT type, message, role FROM chat_history WHERE chat_id = ?", (chat_id,))
@@ -148,10 +161,18 @@ def check_if_chat_history_exists(chat_id: int, SYSTEM_PROMPT: str) -> None:
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
-    chat_id = context.user_data.get('current_chat_id')
     user_id = update.effective_user.id
+    print(f"{user_id}: {user_message}") # DEBUG_USE
     # Get current settings
     _, provider, model, temperature, max_tokens, n, start_prompt = get_current_settings(user_id)
+    chat_id = context.user_data.get('current_chat_id')
+    if chat_id is None:
+        chat_id, chat_title = save_new_chat(user_message, user_id)
+        context.user_data['current_chat_id'] = chat_id
+        context.user_data['current_chat_title'] = chat_title
+        await update.message.reply_text(f"You are now chatting in: {chat_title}! You can save and exit using /end or /delete to delete the chat.")
+    else:
+        pass
     # Check if chat history is empty for the current chat
     check_if_chat_history_exists(chat_id, start_prompt)
     
@@ -205,10 +226,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return CHATTING
 
 async def gen_image(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    print("Context: " + str(context.user_data.get('current_state')))
     chat_id = context.user_data.get('current_chat_id')
     # Extract prompt from behind /image command
     prompt = update.message.text.split(' ', 1)[1]
-    print(prompt)
+    print(prompt) # DEBUG_USE
     stored_message = "Generate an image prompt: " + prompt
     
     # Save user message to database
@@ -244,13 +266,6 @@ async def gen_image(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     return CHATTING
 
-    # # Save AI response to database in base64 format
-    # c.execute("INSERT INTO chat_history (chat_id, type, message, role) VALUES (?, ?, ?, ?)",
-    #           (chat_id, 'image_url', img_base64, 'assistant'))
-    # conn_chats.commit()
-
-    # await update.message.send_photo(img_base64)
-
 async def end_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     del context.user_data['current_chat_id']
     del context.user_data['current_chat_title']
@@ -282,19 +297,26 @@ async def del_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def get_chat_handlers():
+    from settingsMenu import settings
     return {
         SELECTING_CHAT: [
             CallbackQueryHandler(create_new_chat, pattern="^create_new_chat$"),
             CallbackQueryHandler(open_chat, pattern="^open_chat_"),
         ],
         CREATE_NEW_CHAT: [
-            MessageHandler(filters.TEXT & ~filters.COMMAND, save_new_chat),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message),
         ],
         CHATTING: [
             MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message),
             CommandHandler("image", gen_image),
             CommandHandler("end", end_chat),
             CommandHandler("delete", del_chat),
+        ],
+        # SELECTING_SETTINGS: [
+        #     CallbackQueryHandler(settings, pattern="^settings$"),
+        # ],
+        SELECTING_HELP: [
+            CallbackQueryHandler(settings, pattern="^help$"),
         ],
     }
 

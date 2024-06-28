@@ -10,7 +10,7 @@ conn_settinngs = sqlite3.connect('user_preferences.db')
 COLUMNS: Final = 2
 
 # Define conversation states
-SELECTING_OPTION, SELECTING_MODEL, ENTERING_TEMPERATURE, ENTERING_MAX_TOKENS, ENTERING_N, ENTERING_START_PROMPT, SELECT_RESET, SELECTING_PROVIDER = range(8)
+SELECTING_OPTION, SELECTING_MODEL, ENTERING_TEMPERATURE, ENTERING_MAX_TOKENS, ENTERING_N, ENTERING_START_PROMPT, SELECT_RESET, SELECTING_PROVIDER, SELECT_START = range(9)
 
 # Default starting message from file system_prompt.txt
 DEFAULT_STARTING_MESSAGE = open('./system_prompt.txt', 'r').read()
@@ -64,7 +64,7 @@ def settings_keyboard() -> InlineKeyboardMarkup:
          InlineKeyboardButton("N", callback_data="n")],
         [InlineKeyboardButton("Starting Prompt", callback_data="start_prompt"),
          InlineKeyboardButton("Reset to Default", callback_data="reset_to_default")],
-        [InlineKeyboardButton("Done", callback_data="done")]
+        [InlineKeyboardButton("Done", callback_data="show_chats")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -98,9 +98,12 @@ async def option_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     await query.answer()
     option = query.data
     
-    if option == "done":
+    if option == "show_chats":
+        from chattingMenu import start
         await query.edit_message_text("Settings updated. /start to go back to the main menu.")
-        return ConversationHandler.END
+        ConversationHandler.END
+        print("i got here")
+        return start(update, context)
     elif option == "model":
         await query.edit_message_text(f"<b><u>Current GenAI Provider</u>: </b>{str(context.user_data['settings'][0])} \n<b><u>Current Model</u>: </b>{str(context.user_data['settings'][1])} \n\nSelect a provider:", reply_markup=provider_keyboard(), parse_mode="HTML")
         return SELECTING_PROVIDER
@@ -328,7 +331,7 @@ def settings_menu_handler():
                 MessageHandler(filters.TEXT & ~filters.COMMAND, start_prompt_entered),
                 CallbackQueryHandler(back_to_settings, pattern="^back_to_settings$")
                 ],
-            SELECT_RESET: [CallbackQueryHandler(reset_selected)]
+            SELECT_RESET: [CallbackQueryHandler(reset_selected)],
         }
 
 def get_current_settings(user_id) -> tuple:
