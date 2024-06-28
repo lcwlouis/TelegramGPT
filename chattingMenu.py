@@ -350,7 +350,6 @@ def get_chat_handlers():
         SELECTING_CHAT: [
             CallbackQueryHandler(create_new_chat, pattern="^create_new_chat$"),
             CallbackQueryHandler(open_chat, pattern="^open_chat_"),
-            CallbackQueryHandler(settings, pattern="^settings$"),
             CallbackQueryHandler(show_help, pattern="^help$"),
             CallbackQueryHandler(exit_menu, pattern="^exit_menu$"),
             CommandHandler("start", start),

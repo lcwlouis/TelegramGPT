@@ -1,7 +1,13 @@
 import sqlite3
+import os
 
 conn_users = sqlite3.connect('user_preferences.db')
 c = conn_users.cursor()
+
+def on_start() -> None:
+    whitelisted_telegram_id = [int(id) for id in os.getenv('TELEGRAM_WHITELISTED_IDS').split(',')]
+    for id in whitelisted_telegram_id:
+        add_user(id)
 
 def get_all_user_ids() -> list:
     c.execute("SELECT user_id FROM user_preferences")
@@ -19,3 +25,5 @@ def add_user(user_id: int) -> None:
 def kill_connection() -> None:
     conn_users.close()
     print("User DB Connection in user.py Closed")
+
+on_start()

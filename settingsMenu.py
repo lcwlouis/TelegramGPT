@@ -10,7 +10,7 @@ conn_settinngs = sqlite3.connect('user_preferences.db')
 COLUMNS: Final = 2
 
 # Define conversation states
-SELECTING_OPTION, SELECTING_MODEL, ENTERING_TEMPERATURE, ENTERING_MAX_TOKENS, ENTERING_N, ENTERING_START_PROMPT, SELECT_RESET, SELECTING_PROVIDER, SELECT_START = range(9)
+SELECTING_OPTION, SELECTING_MODEL, ENTERING_TEMPERATURE, ENTERING_MAX_TOKENS, ENTERING_N, ENTERING_START_PROMPT, SELECT_RESET, SELECTING_PROVIDER = range(8)
 
 # Default starting message from file system_prompt.txt
 DEFAULT_STARTING_MESSAGE = open('./system_prompt.txt', 'r').read()
@@ -49,7 +49,6 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             parse_mode="HTML"
         )
         return SELECTING_OPTION
-    
     message = await update.message.reply_text(
         f"<b><u>Current settings:</u></b>\n<b>Provider: </b>{provider}\n<b>Model:</b> {model}\n<b>Temperature:</b> {temperature}\n<b>Max tokens:</b> {max_tokens}\n<b>N:</b> {n}\n<b>Starting Prompt:</b> <blockquote>{start_prompt}</blockquote>",
         reply_markup=settings_keyboard(),
@@ -221,6 +220,8 @@ async def temperature_entered(update: Update, context: ContextTypes.DEFAULT_TYPE
 
             message = await update.message.reply_text(f"Temperature updated to: {temperature}")
             context.user_data.setdefault('sent_messages', []).append(message.message_id)
+            from main import cleanup
+            await cleanup(update, context)
             await show_current_settings(update, context)
             return SELECTING_OPTION
         else:
@@ -247,9 +248,9 @@ async def max_tokens_entered(update: Update, context: ContextTypes.DEFAULT_TYPE)
             message = await update.message.reply_text(f"Max tokens updated to: {max_tokens}")
             context.user_data.setdefault('sent_messages', []).append(message.message_id)
             
-            # Clear the chat history on Telegram
-            chat_history = []
-            context.user_data['chat_history'] = chat_history
+            from main import cleanup
+            await cleanup(update, context)
+
             await show_current_settings(update, context)
             return SELECTING_OPTION
         else:
@@ -273,6 +274,10 @@ async def n_entered(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             conn_settinngs.commit()
             message = await update.message.reply_text(f"N updated to: {n}")
             context.user_data.setdefault('sent_messages', []).append(message.message_id)
+
+            from main import cleanup
+            await cleanup(update, context)
+
             await show_current_settings(update, context)
             return SELECTING_OPTION
         else:
@@ -305,6 +310,10 @@ async def start_prompt_entered(update: Update, context: ContextTypes.DEFAULT_TYP
             conn_settinngs.commit()
             message = await update.message.reply_text("Starting prompt updated.")
             context.user_data.setdefault('sent_messages', []).append(message.message_id)
+
+            from main import cleanup
+            await cleanup(update, context)
+            
             await show_current_settings(update, context)
             return SELECTING_OPTION
     except ValueError:

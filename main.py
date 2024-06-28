@@ -46,11 +46,7 @@ TOKEN: Final = os.getenv('TELEGRAM_BOT_TOKEN_DEV')
 # BOT_USERNAME: Final = os.getenv('TELEGRAM_BOT_USERNAME') # Not used
 
 # Load whitelisted telegram ids
-# admin_telegram_id = int(os.getenv('TELEGRAM_ADMIN_ID'))
-whitelisted_telegram_id = [int(id) for id in os.getenv('TELEGRAM_WHITELISTED_IDS').split(',')]
-for id in whitelisted_telegram_id:
-    add_user(id)
-
+admin_telegram_id = int(os.getenv('TELEGRAM_ADMIN_ID'))
 whitelisted_telegram_id = get_all_user_ids()
 
 # Define shared states
@@ -97,20 +93,20 @@ async def exit_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 def main() -> None:
     application = ApplicationBuilder().token(TOKEN).build()
     callback_handler = TypeHandler(Update, callback)
-    
-    # Settings menu handler
-    settings_handler = ConversationHandler(
-        entry_points=[CommandHandler("settings", settings), CallbackQueryHandler(settings, pattern="^settings$")],
-        states=settings_menu_handler(),
-        fallbacks=[CallbackQueryHandler(settings, pattern="^settings$")],
-        per_message=False
-    )
 
     # Chats menu
     chat_menu_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start), CommandHandler("help", show_help), CallbackQueryHandler(show_chats, pattern="^show_chats$")],
         states=get_chat_handlers(),
         fallbacks=[CallbackQueryHandler(show_chats, pattern="^show_chats$")],
+        per_message=False
+    )
+    
+    # Settings menu handler
+    settings_handler = ConversationHandler(
+        entry_points=[CommandHandler("settings", settings), CallbackQueryHandler(settings, pattern="^settings$")],
+        states=settings_menu_handler(),
+        fallbacks=[CallbackQueryHandler(settings, pattern="^settings$")],
         per_message=False
     )
 
