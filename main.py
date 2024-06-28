@@ -66,7 +66,16 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_user.id in whitelisted_telegram_id:
         pass
     else:
-        await update.effective_message.reply_text(f"Hey! You are not allowed to use me! Ask the admin to add ur user id: <code>{update.effective_user.id}</code>", parse_mode="HTML")
+        message = await update.effective_message.reply_text(f"Hey! You are not allowed to use me! Ask the admin to add ur user id: <code>{update.effective_user.id}</code>", parse_mode="HTML")
+        context.user_data.setdefault('sent_messages', []).append(message.message_id)
+        raise ApplicationHandlerStop
+
+async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_user.id == admin_telegram_id:
+        pass
+    else:
+        message = await update.effective_message.reply_text("You are not allowed to use me!", parse_mode="HTML")
+        context.user_data.setdefault('sent_messages', []).append(message.message_id)
         raise ApplicationHandlerStop
 
 async def cleanup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -89,16 +98,30 @@ async def exit_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     context.user_data.setdefault('sent_messages', []).append(message.message_id)
     return ConversationHandler.END
 
+async def admin_add_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_user.id == admin_telegram_id:
+        user_id = update.message.text.split(" ")[1].strip()
+        print(f"User id: {user_id}")
+        if user_id.isdigit() and int(user_id) not in whitelisted_telegram_id and not None:
+            add_user(user_id)
+            whitelisted_telegram_id.append(int(user_id))
+            message = await update.effective_message.reply_text(f"User id <code>{user_id}</code> added successfully", parse_mode="HTML")
+            context.user_data.setdefault('sent_messages', []).append(message.message_id)
+    else:
+        message = await update.effective_message.reply_text("Only admins can use this command")
+        context.user_data.setdefault('sent_messages', []).append(message.message_id)
+
 # Main
 def main() -> None:
     application = ApplicationBuilder().token(TOKEN).build()
     callback_handler = TypeHandler(Update, callback)
+    admin_callback_handler = TypeHandler(Update, admin_callback)
 
     # Chats menu
     chat_menu_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start), CommandHandler("help", show_help), CallbackQueryHandler(show_chats, pattern="^show_chats$")],
         states=get_chat_handlers(),
-        fallbacks=[CallbackQueryHandler(show_chats, pattern="^show_chats$")],
+        fallbacks=[CallbackQueryHandler(start, pattern="^start$")],
         per_message=False
     )
     
@@ -110,10 +133,15 @@ def main() -> None:
         per_message=False
     )
 
+    admin_add_cmd_handler = CommandHandler("admin_add", admin_add_user)
+
     # Add handlers
+
     application.add_handler(callback_handler, -1)
     application.add_handler(chat_menu_handler)
     application.add_handler(settings_handler)
+    application.add_handler(admin_callback_handler, 1)
+    application.add_handler(admin_add_cmd_handler, 2)
     
     # Start the bot
     print("Bot polling, will exit on Ctrl+C and continue posting updates if there are warnings or errors")
