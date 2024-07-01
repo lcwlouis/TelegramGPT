@@ -1,8 +1,8 @@
 import sqlite3
 from typing import Final
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.ext import ContextTypes, ConversationHandler, CallbackQueryHandler, MessageHandler, filters
-from backend import get_available_openai_models, get_available_claude_models
+from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, CallbackQueryHandler, MessageHandler, filters
+from backend import get_available_openai_models, get_available_claude_models, get_available_gemini_models
 
 # start sqlite3
 conn_settinngs = sqlite3.connect('user_preferences.db')
@@ -157,6 +157,14 @@ def openai_model_keyboard() -> InlineKeyboardMarkup:
     ]
     return InlineKeyboardMarkup(keyboard)
 
+def google_model_keyboard() -> InlineKeyboardMarkup:
+    models = get_available_gemini_models()
+    keyboard = [
+        [InlineKeyboardButton(model, callback_data=f"select_model:{model}") for model in models[model_pair*COLUMNS:model_pair*COLUMNS+COLUMNS]]
+        for model_pair in range(len(models))
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
 async def model_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
@@ -202,6 +210,8 @@ def provider_model_keyboard_switch(provider : str) -> InlineKeyboardMarkup:
         return openai_model_keyboard()
     elif provider == "claude":
         return claude_model_keyboard()
+    elif provider == "google":
+        return google_model_keyboard()
     else:
         return InlineKeyboardMarkup([])
 
@@ -334,8 +344,12 @@ async def reset_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     return SELECTING_OPTION
 
 def settings_menu_handler():
+    from chattingMenu import start
     return {
-        SELECTING_OPTION: [CallbackQueryHandler(option_selected)],
+        SELECTING_OPTION: [
+            CallbackQueryHandler(option_selected),
+            CommandHandler("start", start),
+            ],
         SELECTING_PROVIDER: [CallbackQueryHandler(provider_selected)],
         SELECTING_MODEL: [CallbackQueryHandler(model_selected)],
         ENTERING_TEMPERATURE: [

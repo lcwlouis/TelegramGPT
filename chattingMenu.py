@@ -1,10 +1,12 @@
 import logging
 import sqlite3
 import base64
+import os
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler, MessageHandler, filters
-from backend import build_message_list, chat_with_gpt, chat_with_claude, image_gen_with_openai
+from backend import build_message_list, build_message_list_gpt, build_message_list_claude, chat_with_gpt, chat_with_claude, image_gen_with_openai, VISION_MODELS
 from settingsMenu import get_current_settings
+from dateHelper import get_current_date, get_current_weekday
 
 # Define conversation states
 SELECTING_CHAT, CREATE_NEW_CHAT, CHATTING, RETURN_TO_MENU = range(4)
@@ -131,8 +133,23 @@ async def open_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         for message_type, message, role in chat_history:
             # print(f"{role}: {message}") # DEBUG_USE
             if role == 'user':
-                add_to_message_list = await query.message.reply_text(f"<b>You</b>: \n{message}", parse_mode="HTML")
-                context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
+                if message_type == 'text':
+                    try:
+                        add_to_message_list = await query.message.reply_text(f"<b>You</b>: \n{message}", parse_mode="HTML")
+                        context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
+                    except Exception as e:
+                        add_to_message_list = await query.message.reply_text(f"Error formatting the message: \n{message}")
+                        context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
+                if message_type == 'image_url':
+                    try:
+                        decoded_bytes = base64.b64decode(message)
+                        add_to_message_list = await query.message.reply_photo(decoded_bytes)
+                        context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
+                    except Exception as e:
+                        add_to_message_list = await query.message.reply_text(f"Error sending the image")
+                        context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
+                # add_to_message_list = await query.message.reply_text(f"<b>You</b>: \n{message}", parse_mode="HTML")
+                # context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
             elif role == 'assistant':
                 if message_type == 'text':
                     try:
@@ -193,24 +210,34 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Retrieve chat history
     c.execute("SELECT type, message, role FROM chat_history WHERE chat_id = ? ORDER BY rowid", (chat_id,))
     chat_history = c.fetchall()
-    
+
     # Format chat history for AI model
-    messages = []
-    for type, message, role in chat_history:
-        messages = build_message_list(type, message, role, messages)
+    # messages = []
+    # for type, message, role in chat_history:
+    #     messages = build_message_list(type, message, role, model, messages)
 
     # Generate AI response
     if provider == 'openai':
+        messages = build_message_list_gpt(chat_history)
         bot_message = await update.message.reply_text("Working hard...")
         context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
         input_tokens, output_tokens, role, message = chat_with_gpt(messages, model=model, temperature=temperature, max_tokens=max_tokens, n=n)
     elif provider == 'claude':
-        # Remove system prompt from messages
-        messages = messages[1:]
-        response = await chat_with_claude(messages, model=model, temperature=temperature, max_tokens=max_tokens, sys=start_prompt)
-    else:
-        response = "Error: Invalid AI provider"
-    
+        messages = build_message_list_claude(chat_history)
+        bot_message = await update.message.reply_text("Working hard...")
+        context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
+        # modify system prompt to contain the current date
+        start_prompt = start_prompt.replace('{{DAY}}', get_current_weekday()).replace('{{DATE}}', get_current_date())
+        input_tokens, output_tokens, role, message = await chat_with_claude(messages, model=model, temperature=temperature, max_tokens=max_tokens, system=start_prompt)
+    elif provider == 'google':
+        bot_message = await update.message.reply_text("Not implemented yet")
+        context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
+
+        # messages = build_message_list_google(chat_history)
+        # bot_message = await update.message.reply_text("Working hard...")
+        # context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
+        # input_tokens, output_tokens, role, message = chat_with_google(messages, model=model, temperature=temperature, max_tokens=max_tokens, n=n)
+
     # Save AI response to database
     c.execute("INSERT INTO chat_history (chat_id, message, role) VALUES (?, ?, ?)", 
               (chat_id, message, role))
@@ -237,26 +264,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return CHATTING
 
 async def gen_image(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    print("Context: " + str(context.user_data.get('current_state')))
     chat_id = context.user_data.get('current_chat_id')
     # Extract prompt from behind /image command
     prompt = update.message.text.split(' ', 1)[1]
-    print(prompt) # DEBUG_USE
+    # print(prompt) # DEBUG_USE
     stored_message = "Generate an image prompt: " + prompt
     
     # Save user message to database
     c.execute("INSERT INTO chat_history (chat_id, message, role) VALUES (?, ?, ?)", 
               (chat_id, stored_message, 'user'))
     conn_chats.commit()
-
-    # Retrieve chat history of up to the latest 2 messages for the current chat
-    c.execute("SELECT type, message, role FROM chat_history WHERE chat_id = ? ORDER BY rowid DESC LIMIT 3", (chat_id,))
-    chat_history = c.fetchall()
-    
-    # Format chat history for AI model
-    messages = []
-    for type, message, role in chat_history:
-        messages = build_message_list(type, message, role, messages)
 
     # Call dalle API
     img_base64 = await image_gen_with_openai(prompt=prompt, model='dall-e-2',n=1, size="256x256")
@@ -339,6 +356,80 @@ async def show_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.setdefault('sent_messages', []).append(message.message_id)
         return RETURN_TO_MENU
 
+async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    file = await update.message.document.get_file()
+    file_name = update.message.document.file_name
+    file_extension = os.path.splitext(file_name)[1].lower()
+
+    allowed_extensions = ['.txt', '.pdf', '.docx', '.py']  # Add more as needed
+    
+    if file_extension not in allowed_extensions:
+        await update.message.reply_text(f"Sorry, {file_extension} files are not supported.")
+        return CHATTING
+
+    file_path = f"downloads/{file_name}"
+    await file.download_to_drive(file_path)
+
+    # Process the file based on its type
+    if file_extension == '.txt':
+        with open(file_path, 'r') as f:
+            file_content = f.read()
+    else:
+        # For other file types, you might need additional libraries to extract text
+        # For example, use PyPDF2 for PDFs, python-docx for Word documents
+        file_content = f"File received: {file_name}"
+
+    # Save file info to chat history
+    chat_id = context.user_data.get('current_chat_id')
+    c.execute("INSERT INTO chat_history (chat_id, message, role) VALUES (?, ?, ?)", 
+              (chat_id, f"User uploaded file: {file_name}", 'user'))
+    conn_chats.commit()
+
+    # Process file content with AI
+    messages = [{"role": "user", "content": f"Analyze this file content: {file_content}"}]
+    # Use your preferred AI model to process the file content
+    response = chat_with_gpt(messages)  # or chat_with_claude
+
+    await update.message.reply_text(f"File {file_name} processed. AI response: {response}")
+    os.remove(file_path)  # Clean up the downloaded file
+    return CHATTING
+
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    _, provider, model, temperature, max_tokens, n, start_prompt = get_current_settings(update.effective_user.id)
+    # Check the model being used, if it is not a vision model as listed tell user to change the model choice
+    if model not in VISION_MODELS:
+        message =await update.message.reply_text(f"Please select a model from the list: {', '.join(VISION_MODELS)}")
+        context.user_data.setdefault('sent_messages', []).append(message.message_id)
+        return CHATTING
+    photo_file = await update.message.photo[-1].get_file()
+    # Ensure incoming file format is jpg
+    if not (('.jpg' in photo_file.file_path) or ('.jpeg' in photo_file.file_path)):
+        message = await update.message.reply_text("Unfortunately we only accept a .jpg or .jpeg image.")
+        context.user_data.setdefault('sent_messages', []).append(message.message_id)
+        return CHATTING
+    
+    # Download the photo as a variable
+    image_bytes = await photo_file.download_as_bytearray()
+    image_in_base64 = base64.b64encode(image_bytes).decode('utf-8')
+
+    # Save photo info to chat history
+    if image_in_base64 is not None:
+        chat_id = context.user_data.get('current_chat_id')
+        c.execute("INSERT INTO chat_history (chat_id, type, message, role) VALUES (?, ?, ?, ?)", 
+                (chat_id, "image_url", image_in_base64, 'user'))
+        conn_chats.commit()
+
+        message = await update.message.reply_text("Photo received. Continue typing your message.")
+        context.user_data.setdefault('sent_messages', []).append(message.message_id)
+        return CHATTING
+
+    if image_in_base64 is None:
+        message = await update.message.reply_text("Failed to download image.")
+        context.user_data.setdefault('sent_messages', []).append(message.message_id)
+        return CHATTING
+    
+    # os.remove(file_path)  # Clean up the downloaded file
+    return CHATTING
 
 def get_chat_handlers():
     from settingsMenu import settings
@@ -352,12 +443,15 @@ def get_chat_handlers():
         ],
         CREATE_NEW_CHAT: [
             MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message),
+            CommandHandler("start", start),
         ],
         CHATTING: [
             MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message),
+            MessageHandler(filters.PHOTO & ~filters.COMMAND, handle_photo),
             CommandHandler("image", gen_image),
             CommandHandler("end", end_chat),
             CommandHandler("delete", del_chat),
+            CommandHandler("start", end_chat)
         ],
         RETURN_TO_MENU: [
             CallbackQueryHandler(start, pattern="^show_chats$"),
