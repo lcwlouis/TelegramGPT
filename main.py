@@ -2,7 +2,7 @@ import logging
 import os
 from typing import Final
 from dotenv import load_dotenv
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram import Update
 from telegram.ext import (
     ApplicationHandlerStop,
     ApplicationBuilder,
@@ -10,7 +10,8 @@ from telegram.ext import (
     CommandHandler,
     TypeHandler,
     CallbackQueryHandler,
-    ConversationHandler
+    ConversationHandler,
+    PicklePersistence
 )
 from settingsMenu import (
     settings, 
@@ -66,7 +67,7 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_user.id in whitelisted_telegram_id:
         pass
     else:
-        message = await update.effective_message.reply_text(f"Hey! You are not allowed to use me! Ask the admin to add ur user id: <code>{update.effective_user.id}</code>", parse_mode="HTML")
+        message = await update.effective_message.reply_text(f"Hey! You are not allowed to use me! Ask the admin to add your user id: <code>{update.effective_user.id}</code>", parse_mode="HTML")
         context.user_data.setdefault('sent_messages', []).append(message.message_id)
         raise ApplicationHandlerStop
 
@@ -81,7 +82,9 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 async def cleanup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # Delete all messages before the next message
     if 'sent_messages' in context.user_data:
-        for message_id in context.user_data['sent_messages']:
+        min_id = min(context.user_data['sent_messages']) - 1
+        max_id = max(context.user_data['sent_messages']) + 1
+        for message_id in range(min_id, max_id):
             try:
                 await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=message_id)
             except Exception as e:
@@ -94,7 +97,7 @@ async def exit_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     context.user_data.clear()
     # Send a new message telling the user to /start
     message = await context.bot.send_message(chat_id=update.effective_chat.id, text="Type /start to start again")
-    print(f"Sent message: {message.message_id}")
+    # print(f"Sent message: {message.message_id}")
     context.user_data.setdefault('sent_messages', []).append(message.message_id)
     return ConversationHandler.END
 
@@ -108,21 +111,22 @@ async def admin_add_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             message = await update.effective_message.reply_text(f"User id <code>{user_id}</code> added successfully", parse_mode="HTML")
             context.user_data.setdefault('sent_messages', []).append(message.message_id)
     else:
-        message = await update.effective_message.reply_text("Only admins can use this command")
+        message = await update.effective_message.reply_text("You are not allowed to use me!", parse_mode="HTML")
         context.user_data.setdefault('sent_messages', []).append(message.message_id)
 
 # Main
 def main() -> None:
+    # persistence = PicklePersistence(filepath="user_data")
+    # application = ApplicationBuilder().token(TOKEN).persistence(persistence).build()
     application = ApplicationBuilder().token(TOKEN).build()
     callback_handler = TypeHandler(Update, callback)
-    admin_callback_handler = TypeHandler(Update, admin_callback)
 
     # Chats menu
     chat_menu_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start), CommandHandler("help", show_help), CallbackQueryHandler(show_chats, pattern="^show_chats$")],
         states=get_chat_handlers(),
         fallbacks=[CallbackQueryHandler(start, pattern="^start$")],
-        per_message=False
+        per_message=False,
     )
     
     # Settings menu handler
@@ -140,8 +144,7 @@ def main() -> None:
     application.add_handler(callback_handler, -1)
     application.add_handler(chat_menu_handler)
     application.add_handler(settings_handler)
-    application.add_handler(admin_callback_handler, 1)
-    application.add_handler(admin_add_cmd_handler, 2)
+    application.add_handler(admin_add_cmd_handler)
     
     # Start the bot
     print("Bot polling, will exit on Ctrl+C and continue posting updates if there are warnings or errors")
@@ -156,3 +159,4 @@ def main() -> None:
 
 if __name__ == '__main__':
     main()
+
