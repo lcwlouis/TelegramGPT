@@ -3,10 +3,10 @@ import sqlite3
 import base64
 import os
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram.constants import ParseMode
 from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 from backend import build_message_list, build_message_list_gpt, build_message_list_claude, chat_with_gpt, chat_with_claude, image_gen_with_openai, VISION_MODELS
 from settingsMenu import get_current_settings
-from dateHelper import get_current_date, get_current_weekday
 
 # Define conversation states
 SELECTING_CHAT, CREATE_NEW_CHAT, CHATTING, RETURN_TO_MENU = range(4)
@@ -71,14 +71,14 @@ async def show_chats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     else:
         message_text = f"<b><u>Hello {update.effective_user.first_name}</u></b>! Welcome to the <b>Universalis</b>, I am here to answer your questions about anything. \n\n<u>Create a new chat</u>:\n==================================="
     
-    # await context.bot.send_message(chat_id=update.effective_chat.id, text=message_text, reply_markup=reply_markup, parse_mode="HTML")
+    # await context.bot.send_message(chat_id=update.effective_chat.id, text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
     try:
         query = update.callback_query
-        await query.message.edit_text(text=message_text, reply_markup=reply_markup, parse_mode="HTML")
+        await query.message.edit_text(text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
         return SELECTING_CHAT
     except:
         # Edit existing /start message
-        message = await context.bot.send_message(chat_id=update.effective_chat.id, text=message_text, reply_markup=reply_markup, parse_mode="HTML")
+        message = await context.bot.send_message(chat_id=update.effective_chat.id, text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
         context.user_data.setdefault('sent_messages', []).append(message.message_id)
         
         return SELECTING_CHAT
@@ -87,7 +87,7 @@ async def create_new_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     await update.callback_query.answer()
     await update.callback_query.edit_message_text(
         text="<b>What do you want to talk about?</b> (E.g. \"How to cook scrambled eggs\"):",
-        parse_mode="HTML"
+        parse_mode=ParseMode.HTML
     )
     return CREATE_NEW_CHAT
 
@@ -135,7 +135,7 @@ async def open_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             if role == 'user':
                 if message_type == 'text':
                     try:
-                        add_to_message_list = await query.message.reply_text(f"<b>You</b>: \n{message}", parse_mode="HTML")
+                        add_to_message_list = await query.message.reply_text(f"<b>You</b>: \n{message}", parse_mode=ParseMode.HTML)
                         context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
                     except Exception as e:
                         add_to_message_list = await query.message.reply_text(f"Error formatting the message: \n{message}")
@@ -148,12 +148,12 @@ async def open_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
                     except Exception as e:
                         add_to_message_list = await query.message.reply_text(f"Error sending the image")
                         context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
-                # add_to_message_list = await query.message.reply_text(f"<b>You</b>: \n{message}", parse_mode="HTML")
+                # add_to_message_list = await query.message.reply_text(f"<b>You</b>: \n{message}", parse_mode=ParseMode.HTML)
                 # context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
             elif role == 'assistant':
                 if message_type == 'text':
                     try:
-                        add_to_message_list = await query.message.reply_text(f"<b>Academic Weapon</b>: \n{message}", parse_mode="HTML")
+                        add_to_message_list = await query.message.reply_text(f"<b>Academic Weapon</b>: \n{message}", parse_mode=ParseMode.HTML)
                         context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
                     except Exception as e:
                         add_to_message_list = await query.message.reply_text(f"Error formatting the message: \n{message}")
@@ -168,7 +168,7 @@ async def open_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
                         context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
             else:
                 pass
-        add_to_message_list = await query.message.reply_text(f"Type your message or /end to save and leave this conversation. \nCurrent usage of tokens(I/O): <code>{input_tokens}</code> / <code>{output_tokens}</code>", parse_mode="HTML")
+        add_to_message_list = await query.message.reply_text(f"Type your message or /end to save and leave this conversation. \nCurrent usage of tokens(I/O): <code>{input_tokens}</code> / <code>{output_tokens}</code>", parse_mode=ParseMode.HTML)
         context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
     else:
         pass
@@ -226,8 +226,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         messages = build_message_list_claude(chat_history)
         bot_message = await update.message.reply_text("Working hard...")
         context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
-        # modify system prompt to contain the current date
-        start_prompt = start_prompt.replace('{{DAY}}', get_current_weekday()).replace('{{DATE}}', get_current_date())
         input_tokens, output_tokens, role, message = await chat_with_claude(messages, model=model, temperature=temperature, max_tokens=max_tokens, system=start_prompt)
     elif provider == 'google':
         bot_message = await update.message.reply_text("Not implemented yet")
@@ -257,7 +255,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply = f"<b>Academic Weapon</b>: \n{message} \n ------------------- \n<i>Input: {input_tokens} tokens  Output: {output_tokens} tokens</i> \n<i>Total input used: {total_input_tokens} tokens  Total output used: {total_output_tokens} tokens</i>"
     
     try:
-        await bot_message.edit_text(reply, parse_mode="HTML")
+        await bot_message.edit_text(reply, parse_mode=ParseMode.HTML)
     except Exception as e:
         message = await bot_message.reply_text(f"Message unable to format properly: {message}")
         context.user_data.setdefault('sent_messages', []).append(message.message_id)
@@ -298,8 +296,11 @@ async def gen_image(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def end_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     from main import cleanup
-    del context.user_data['current_chat_id']
-    del context.user_data['current_chat_title']
+    try:
+        del context.user_data['current_chat_id']
+        del context.user_data['current_chat_title']
+    except KeyError:
+        pass
     message = await update.message.reply_text("Chat ended. Returning to chat selection.")
     context.user_data.setdefault('sent_messages', []).append(message.message_id)
     await cleanup(update, context)
@@ -349,10 +350,10 @@ async def show_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
     if update.callback_query:
         await update.callback_query.answer()
-        await update.callback_query.edit_message_text(help_message, parse_mode="HTML", reply_markup=InlineKeyboardMarkup([keyboard]))
+        await update.callback_query.edit_message_text(help_message, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup([keyboard]))
         return RETURN_TO_MENU
     else:
-        message = await update.message.reply_text(help_message, parse_mode="HTML", reply_markup=InlineKeyboardMarkup([keyboard]))
+        message = await update.message.reply_text(help_message, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup([keyboard]))
         context.user_data.setdefault('sent_messages', []).append(message.message_id)
         return RETURN_TO_MENU
 
@@ -440,6 +441,7 @@ def get_chat_handlers():
             CallbackQueryHandler(open_chat, pattern="^open_chat_"),
             CallbackQueryHandler(show_help, pattern="^help$"),
             CallbackQueryHandler(exit_menu, pattern="^exit_menu$"),
+            CommandHandler("start", start)
         ],
         CREATE_NEW_CHAT: [
             MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message),
