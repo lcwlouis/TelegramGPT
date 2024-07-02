@@ -11,6 +11,7 @@ from PIL import Image
 from typing import Final
 from anthropic import AsyncAnthropic
 from openai import OpenAI
+from google.generativeai.types import HarmBlockThreshold, HarmCategory
 from dotenv import load_dotenv
 from dateHelper import get_current_date, get_current_weekday
 
@@ -33,8 +34,6 @@ VISION_MODELS: Final = [
     'claude-3-sonnet-20240229',
     'claude-3-opus-20240229',
     'claude-3-5-sonnet-20240620',
-    'gemini-1.5-flash',
-    'gemini-1.5-pro',
 ]
 
 # Set up system prompt
@@ -175,8 +174,33 @@ def build_message_list_claude(chat_history) -> list:
     
     return messages
 
+def build_message_list_gemini(chat_history) -> list:
+    messages = []
+    length_of_history = len(chat_history)
+    for i in range(length_of_history):
+        if i == 0 or i == length_of_history:
+            continue
+        message_type, message, role = chat_history[i]
+        if role == 'assistant':
+            role = "model"
+        if message_type == 'text':
+            messages.append({
+            "role": role, 
+            "parts": [
+                f"{message}", 
+                ]
+            })
+        elif message_type == 'image_url':
+            messages.append({
+            "role": role, 
+            "parts": [
+                f"Image was skipped due to technical limitation", 
+                ]
+            })
+    return messages
+
 # Define to interact with OpenAI GPT
-def chat_with_gpt(messages, model='gpt-3.5-turbo', temperature=0.5, max_tokens=100, n=1) -> str:
+async def chat_with_gpt(messages, model='gpt-3.5-turbo', temperature=0.5, max_tokens=100, n=1) -> str:
     # print(messages)
     response = openai.chat.completions.create(
         model=model,  # Specify the GPT-4 engine
@@ -203,8 +227,30 @@ async def chat_with_claude(messages, model='claude-3-haiku-20240307', temperatur
     return process_response_from_claude(response)
 
 # function to interact with Gemini
-def chat_with_gemini(messages, model='gemini-1.5-flash', temperature=0.5, max_tokens=100) -> str:
-    return "0"
+async def chat_with_gemini(input_message, model='gemini-1.5-flash', temperature=0.5, max_tokens=100, message_history=[], system="") -> str:
+    generation_config = {
+        "temperature": temperature,
+        "top_p": 0.95,
+        "top_k": 64,
+        "max_output_tokens": max_tokens,
+        "response_mime_type": "text/plain",
+    }
+    safety_settings = {
+        HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+        HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+        HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+        HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+    }
+    model = gemini.GenerativeModel(
+        model_name=model,
+        generation_config=generation_config,
+        safety_settings=safety_settings,
+        system_instruction=system,
+    )
+    response = await model.generate_content_async(input_message)
+    # chat_session = model.start_chat(history=message_history)
+    # response = await chat_session.send_message_async(input_message)
+    return process_response_from_gemini(response)
 
 # function to interact with Ollama
 def chat_with_ollama(messages, model, temperature=0.5, max_tokens=100) -> str:
@@ -276,12 +322,6 @@ def get_available_ollama_models() -> list:
         available_models = sorted(available_models)
     return available_models
 
-
-def process_response_for_telegram_style(response) -> str:
-    # Ensures response is in the MarkdownV2 format that Telegram has required while maintaining formatting, not just escaping everything
-    response = response.replace('[', '\\[').replace(']', '\\]').replace('(', '\\(').replace(')', '\\)').replace('#', '\\#').replace('+', '\\+').replace('-', '\\-').replace('=', '\\=').replace('{', '\\{').replace('}', '\\}').replace('.', '\\.').replace('!', '\\!') # .replace('_', '\\_').replace('*', '\\*').replace('~', '\\~').replace('`', '\\`').replace('>', '\\>').replace('|', '\\|')
-    return response
-
 def process_response_from_openai(response) -> tuple:
     input_tokens = response.usage.prompt_tokens
     output_tokens = response.usage.completion_tokens
@@ -302,3 +342,9 @@ def process_response_from_claude(response) -> tuple:
 
     return input_tokens, output_tokens, role, message
 
+def process_response_from_gemini(response) -> tuple:
+    input_tokens = response.usage_metadata.prompt_token_count
+    output_tokens = response.usage_metadata.candidates_token_count
+    role = "assistant" if response.candidates[0].content.role == "model" else response.candidates[0].content.role
+    message = response.text
+    return input_tokens, output_tokens, role, message

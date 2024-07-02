@@ -5,7 +5,7 @@ import os
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler, MessageHandler, filters
-from backend import build_message_list, build_message_list_gpt, build_message_list_claude, chat_with_gpt, chat_with_claude, image_gen_with_openai, VISION_MODELS
+from backend import build_message_list, build_message_list_gpt, build_message_list_claude, build_message_list_gemini, chat_with_gpt, chat_with_claude, chat_with_gemini ,image_gen_with_openai, VISION_MODELS
 from settingsMenu import get_current_settings
 
 # Define conversation states
@@ -91,7 +91,7 @@ async def create_new_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     )
     return CREATE_NEW_CHAT
 
-def save_new_chat(prompt, user_id):
+async def save_new_chat(prompt, user_id):
     # Generate a title for the new chat
     title_prompt = open("title_system_prompt.txt", "r").read()
     gen_prompt = "The user has asked: " + str(prompt)
@@ -99,7 +99,7 @@ def save_new_chat(prompt, user_id):
     messages = build_message_list("text", title_prompt, "system", messages)
     messages = build_message_list("text", gen_prompt, "user", messages)
 
-    response = chat_with_gpt(messages, model='gpt-3.5-turbo', temperature=1, max_tokens=10, n=1)
+    response = await chat_with_gpt(messages, model='gpt-3.5-turbo', temperature=1, max_tokens=15, n=1)
     chat_title = response[3]
     
     c.execute("INSERT INTO chats (user_id, chat_title) VALUES (?, ?)", (user_id, chat_title))
@@ -192,7 +192,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _, provider, model, temperature, max_tokens, n, start_prompt = get_current_settings(user_id)
     chat_id = context.user_data.get('current_chat_id')
     if chat_id is None:
-        chat_id, chat_title = save_new_chat(user_message, user_id)
+        chat_id, chat_title = await save_new_chat(user_message, user_id)
         context.user_data['current_chat_id'] = chat_id
         context.user_data['current_chat_title'] = chat_title
         message = await update.message.reply_text(f"You are now chatting in: {chat_title}! You can save and exit using /end or /delete to delete the chat.")
@@ -221,15 +221,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         messages = build_message_list_gpt(chat_history)
         bot_message = await update.message.reply_text("Working hard...")
         context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
-        input_tokens, output_tokens, role, message = chat_with_gpt(messages, model=model, temperature=temperature, max_tokens=max_tokens, n=n)
+        input_tokens, output_tokens, role, message = await chat_with_gpt(messages, model=model, temperature=temperature, max_tokens=max_tokens, n=n)
     elif provider == 'claude':
         messages = build_message_list_claude(chat_history)
         bot_message = await update.message.reply_text("Working hard...")
         context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
         input_tokens, output_tokens, role, message = await chat_with_claude(messages, model=model, temperature=temperature, max_tokens=max_tokens, system=start_prompt)
     elif provider == 'google':
-        bot_message = await update.message.reply_text("Not implemented yet")
+        chat_history = build_message_list_gemini(chat_history)
+        bot_message = await update.message.reply_text("Working hard...")
         context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
+        input_tokens, output_tokens, role, message = await chat_with_gemini(user_message, model=model, temperature=temperature, max_tokens=max_tokens, message_history=chat_history, system=start_prompt)
 
         # messages = build_message_list_google(chat_history)
         # bot_message = await update.message.reply_text("Working hard...")
