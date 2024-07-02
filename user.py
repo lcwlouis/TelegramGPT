@@ -1,7 +1,16 @@
 import sqlite3
 import os
+from dotenv import load_dotenv
 
-conn_users = sqlite3.connect('user_preferences.db')
+load_dotenv()
+
+DB_DIR = os.getenv('DB_DIR')
+DB_FILE = 'user_preferences.db'
+DB_PATH = os.path.join(DB_DIR, DB_FILE)
+
+os.makedirs(DB_DIR, exist_ok=True)
+
+conn_users = sqlite3.connect(DB_PATH)
 c = conn_users.cursor()
 
 def on_start() -> None:

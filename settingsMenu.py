@@ -1,12 +1,22 @@
 import sqlite3
+import os
+from dotenv import load_dotenv
 from typing import Final
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 from backend import get_available_openai_models, get_available_claude_models, get_available_gemini_models, get_available_ollama_models
 
+load_dotenv() 
+
+DB_DIR = os.getenv('DB_DIR')
+DB_FILE = 'user_preferences.db'
+DB_PATH = os.path.join(DB_DIR, DB_FILE)
+
+os.makedirs(DB_DIR, exist_ok=True)
+
 # start sqlite3
-conn_settinngs = sqlite3.connect('user_preferences.db')
+conn_settinngs = sqlite3.connect(DB_PATH)
 
 COLUMNS: Final = 2
 
