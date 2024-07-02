@@ -1,8 +1,9 @@
 import sqlite3
 from typing import Final
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.ext import ContextTypes, ConversationHandler, CallbackQueryHandler, MessageHandler, filters
-from backend import get_available_openai_models, get_available_claude_models
+from telegram.constants import ParseMode
+from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, CallbackQueryHandler, MessageHandler, filters
+from backend import get_available_openai_models, get_available_claude_models, get_available_gemini_models, get_available_ollama_models
 
 # start sqlite3
 conn_settinngs = sqlite3.connect('user_preferences.db')
@@ -10,7 +11,7 @@ conn_settinngs = sqlite3.connect('user_preferences.db')
 COLUMNS: Final = 2
 
 # Define conversation states
-SELECTING_OPTION, SELECTING_MODEL, ENTERING_TEMPERATURE, ENTERING_MAX_TOKENS, ENTERING_N, ENTERING_START_PROMPT, SELECT_RESET, SELECTING_PROVIDER = range(8)
+SELECTING_OPTION, SELECTING_MODEL, ENTERING_TEMPERATURE, ENTERING_MAX_TOKENS, ENTERING_N, ENTERING_START_PROMPT, SELECT_RESET, SELECTING_PROVIDER = range(4, 12)
 
 # Default starting message from file system_prompt.txt
 DEFAULT_STARTING_MESSAGE = open('./system_prompt.txt', 'r').read()
@@ -46,14 +47,15 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         await query.message.edit_text(
             f"<b><u>Current settings:</u></b>\n<b>Provider: </b>{provider}\n<b>Model:</b> {model}\n<b>Temperature:</b> {temperature}\n<b>Max tokens:</b> {max_tokens}\n<b>N:</b> {n}\n<b>Starting Prompt:</b> <blockquote>{start_prompt}</blockquote>",
             reply_markup=settings_keyboard(),
-            parse_mode="HTML"
+            parse_mode=ParseMode.HTML
         )
         return SELECTING_OPTION
-    await update.message.reply_text(
+    message = await update.message.reply_text(
         f"<b><u>Current settings:</u></b>\n<b>Provider: </b>{provider}\n<b>Model:</b> {model}\n<b>Temperature:</b> {temperature}\n<b>Max tokens:</b> {max_tokens}\n<b>N:</b> {n}\n<b>Starting Prompt:</b> <blockquote>{start_prompt}</blockquote>",
         reply_markup=settings_keyboard(),
-        parse_mode="HTML"
+        parse_mode=ParseMode.HTML
     )
+    context.user_data.setdefault('sent_messages', []).append(message.message_id)
     return SELECTING_OPTION
 
 def settings_keyboard() -> InlineKeyboardMarkup:
@@ -64,7 +66,7 @@ def settings_keyboard() -> InlineKeyboardMarkup:
          InlineKeyboardButton("N", callback_data="n")],
         [InlineKeyboardButton("Starting Prompt", callback_data="start_prompt"),
          InlineKeyboardButton("Reset to Default", callback_data="reset_to_default")],
-        [InlineKeyboardButton("Done", callback_data="done")]
+        [InlineKeyboardButton("Done", callback_data="show_chats")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -82,9 +84,11 @@ async def show_current_settings(update: Update, context: ContextTypes.DEFAULT_TY
     )
     
     if update.callback_query:
-        await update.callback_query.edit_message_text(message_text, reply_markup=keyboard, parse_mode="HTML")
+        await update.callback_query.edit_message_text(message_text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
     else:
-        await update.message.reply_text(message_text, reply_markup=keyboard, parse_mode="HTML")
+        message = await update.message.reply_text(message_text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
+        context.user_data.setdefault('sent_messages', []).append(message.message_id)
+
 
 async def back_to_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
@@ -98,26 +102,27 @@ async def option_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     await query.answer()
     option = query.data
     
-    if option == "done":
-        await query.edit_message_text("Settings updated. /start to go back to the main menu.")
+    if option == "show_chats":
+        from chattingMenu import start
+        await start(update, context)
         return ConversationHandler.END
     elif option == "model":
-        await query.edit_message_text(f"<b><u>Current GenAI Provider</u>: </b>{str(context.user_data['settings'][0])} \n<b><u>Current Model</u>: </b>{str(context.user_data['settings'][1])} \n\nSelect a provider:", reply_markup=provider_keyboard(), parse_mode="HTML")
+        await query.edit_message_text(f"<b><u>Current GenAI Provider</u>: </b>{str(context.user_data['settings'][0])} \n<b><u>Current Model</u>: </b>{str(context.user_data['settings'][1])} \n\nSelect a provider:", reply_markup=provider_keyboard(), parse_mode=ParseMode.HTML)
         return SELECTING_PROVIDER
     elif option == "temperature":
-        await query.edit_message_text(f"<b><u>Current Temperature</u>: </b>{str(context.user_data['settings'][2])} \n\nEnter a new temperature value (0.0 to 1.0):", reply_markup=back_keyboard(), parse_mode="HTML")
+        await query.edit_message_text(f"<b><u>Current Temperature</u>: </b>{str(context.user_data['settings'][2])} \n\nEnter a new temperature value (0.0 to 1.0):", reply_markup=back_keyboard(), parse_mode=ParseMode.HTML)
         return ENTERING_TEMPERATURE
     elif option == "max_tokens":
-        await query.edit_message_text(f"<b><u>Current Max Tokens</u>: </b>{str(context.user_data['settings'][3])} \n\nEnter a new max tokens value (1 to 4096):", reply_markup=back_keyboard(), parse_mode="HTML")
+        await query.edit_message_text(f"<b><u>Current Max Tokens</u>: </b>{str(context.user_data['settings'][3])} \n\nEnter a new max tokens value (1 to 4096):", reply_markup=back_keyboard(), parse_mode=ParseMode.HTML)
         return ENTERING_MAX_TOKENS
     elif option == "n":
-        await query.edit_message_text(f"<b><u>Current n value</u>: </b>{str(context.user_data['settings'][4])} \n\nEnter a new N value (0.0 to 1.0):", reply_markup=back_keyboard(), parse_mode="HTML")
+        await query.edit_message_text(f"<b><u>Current n value</u>: </b>{str(context.user_data['settings'][4])} \n\nEnter a new N value (0.0 to 1.0):", reply_markup=back_keyboard(), parse_mode=ParseMode.HTML)
         return ENTERING_N
     elif option == "start_prompt":
-        await query.edit_message_text(f"<b><u>Current Starting Prompt</u>: </b> <code>{str(context.user_data['settings'][5])}</code> \n\nEnter a new starting prompt:", reply_markup=back_keyboard(), parse_mode="HTML")
+        await query.edit_message_text(f"<b><u>Current Starting Prompt</u>: </b> <code>{str(context.user_data['settings'][5])}</code> \n\nEnter a new starting prompt:", reply_markup=back_keyboard(), parse_mode=ParseMode.HTML)
         return ENTERING_START_PROMPT
     elif option == "reset_to_default":
-        await query.edit_message_text("Resetting to default settings...", parse_mode="HTML")
+        await query.edit_message_text("Resetting to default settings...", parse_mode=ParseMode.HTML)
         await reset_selected(update, context)
         return SELECTING_OPTION
 
@@ -133,7 +138,8 @@ def provider_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton("OpenAI", callback_data="openai"),
          InlineKeyboardButton("Claude", callback_data="claude")],
         [InlineKeyboardButton("Google", callback_data="google"),
-         InlineKeyboardButton("Back", callback_data="back_to_settings")],
+         InlineKeyboardButton("Ollama", callback_data="ollama")],
+         [InlineKeyboardButton("Back", callback_data="back_to_settings")],
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -153,6 +159,22 @@ def openai_model_keyboard() -> InlineKeyboardMarkup:
     ]
     return InlineKeyboardMarkup(keyboard)
 
+def google_model_keyboard() -> InlineKeyboardMarkup:
+    models = get_available_gemini_models()
+    keyboard = [
+        [InlineKeyboardButton(model, callback_data=f"select_model:{model}") for model in models[model_pair*COLUMNS:model_pair*COLUMNS+COLUMNS]]
+        for model_pair in range(len(models))
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+def ollama_model_keyboard() -> InlineKeyboardMarkup:
+    models = get_available_ollama_models()
+    keyboard = [
+        [InlineKeyboardButton(model, callback_data=f"select_model:{model}") for model in models[model_pair*COLUMNS:model_pair*COLUMNS+COLUMNS]]
+        for model_pair in range(len(models))
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
 async def model_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
@@ -161,7 +183,7 @@ async def model_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await show_current_settings(update, context)
         return SELECTING_OPTION
     
-    selected_model = query.data.split(":")[1]
+    selected_model = query.data.split("_model:")[1]
     context.user_data['settings'][1] = selected_model
     
     # Update the database
@@ -190,7 +212,7 @@ async def provider_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     conn_settinngs.commit()
     
     # move to model selection
-    await query.edit_message_text(f"<b><u>Current Provider</u>: </b>{context.user_data['settings'][0]} \n<b><u>Current Model</u>: </b>{context.user_data['settings'][1]} \nSelect a model:", reply_markup=provider_model_keyboard_switch(context.user_data['settings'][0]), parse_mode="HTML")
+    await query.edit_message_text(f"<b><u>Current Provider</u>: </b>{context.user_data['settings'][0]} \n<b><u>Current Model</u>: </b>{context.user_data['settings'][1]} \nSelect a model:", reply_markup=provider_model_keyboard_switch(context.user_data['settings'][0]), parse_mode=ParseMode.HTML)
     return SELECTING_MODEL
 
 def provider_model_keyboard_switch(provider : str) -> InlineKeyboardMarkup:
@@ -198,6 +220,10 @@ def provider_model_keyboard_switch(provider : str) -> InlineKeyboardMarkup:
         return openai_model_keyboard()
     elif provider == "claude":
         return claude_model_keyboard()
+    elif provider == "google":
+        return google_model_keyboard()
+    elif provider == "ollama":
+        return ollama_model_keyboard()
     else:
         return InlineKeyboardMarkup([])
 
@@ -213,14 +239,19 @@ async def temperature_entered(update: Update, context: ContextTypes.DEFAULT_TYPE
             c.execute('UPDATE user_preferences SET temperature = ? WHERE user_id = ?', (temperature, user_id))
             conn_settinngs.commit()
 
-            await update.message.reply_text(f"Temperature updated to: {temperature}")
+            message = await update.message.reply_text(f"Temperature updated to: {temperature}")
+            context.user_data.setdefault('sent_messages', []).append(message.message_id)
+            from main import cleanup
+            await cleanup(update, context)
             await show_current_settings(update, context)
             return SELECTING_OPTION
         else:
-            await update.message.reply_text("Please enter a value between 0 and 1.")
+            message = await update.message.reply_text("Please enter a value between 0 and 1.")
+            context.user_data.setdefault('sent_messages', []).append(message.message_id)
             return ENTERING_TEMPERATURE
     except ValueError:
-        await update.message.reply_text("Please enter a valid number between 0 and 1.")
+        message = await update.message.reply_text("Please enter a valid number between 0 and 1.")
+        context.user_data.setdefault('sent_messages', []).append(message.message_id)
         return ENTERING_TEMPERATURE
 
 async def max_tokens_entered(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -235,18 +266,21 @@ async def max_tokens_entered(update: Update, context: ContextTypes.DEFAULT_TYPE)
             c.execute('UPDATE user_preferences SET max_tokens = ? WHERE user_id = ?', (max_tokens, user_id))
             conn_settinngs.commit()
             
-            await update.message.reply_text(f"Max tokens updated to: {max_tokens}")
+            message = await update.message.reply_text(f"Max tokens updated to: {max_tokens}")
+            context.user_data.setdefault('sent_messages', []).append(message.message_id)
             
-            # Clear the chat history on Telegram
-            chat_history = []
-            context.user_data['chat_history'] = chat_history
+            from main import cleanup
+            await cleanup(update, context)
+
             await show_current_settings(update, context)
             return SELECTING_OPTION
         else:
-            await update.message.reply_text("Please enter a value between 1 and 4096.")
+            message = await update.message.reply_text("Please enter a value between 1 and 4096.")
+            context.user_data.setdefault('sent_messages', []).append(message.message_id)
             return ENTERING_MAX_TOKENS
     except ValueError:
-        await update.message.reply_text("Please enter a valid number between 1 and 4096.")
+        message = await update.message.reply_text("Please enter a valid number between 1 and 4096.")
+        context.user_data.setdefault('sent_messages', []).append(message.message_id)
         return ENTERING_MAX_TOKENS
 
 async def n_entered(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -259,14 +293,21 @@ async def n_entered(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             user_id = update.effective_user.id
             c.execute('UPDATE user_preferences SET n = ? WHERE user_id = ?', (n, user_id))
             conn_settinngs.commit()
-            await update.message.reply_text(f"N updated to: {n}")
+            message = await update.message.reply_text(f"N updated to: {n}")
+            context.user_data.setdefault('sent_messages', []).append(message.message_id)
+
+            from main import cleanup
+            await cleanup(update, context)
+
             await show_current_settings(update, context)
             return SELECTING_OPTION
         else:
-            await update.message.reply_text("Please enter a value between 0 and 1.")
+            message = await update.message.reply_text("Please enter a value between 0 and 1.")
+            context.user_data.setdefault('sent_messages', []).append(message.message_id)
             return ENTERING_N
     except ValueError:
-        await update.message.reply_text("Please enter a valid number between 0 and 1.")
+        message = await update.message.reply_text("Please enter a valid number between 0 and 1.")
+        context.user_data.setdefault('sent_messages', []).append(message.message_id)
         return ENTERING_N
 
 async def start_prompt_entered(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -278,7 +319,8 @@ async def start_prompt_entered(update: Update, context: ContextTypes.DEFAULT_TYP
             user_id = update.effective_user.id
             c.execute('UPDATE user_preferences SET start_prompt = ? WHERE user_id = ?', ('', user_id))
             conn_settinngs.commit()
-            await update.message.reply_text("Starting prompt cleared.")
+            message = await update.message.reply_text("Starting prompt cleared.")
+            context.user_data.setdefault('sent_messages', []).append(message.message_id)
             await show_current_settings(update, context)
             return SELECTING_OPTION
         else:
@@ -287,11 +329,17 @@ async def start_prompt_entered(update: Update, context: ContextTypes.DEFAULT_TYP
             user_id = update.effective_user.id
             c.execute('UPDATE user_preferences SET start_prompt = ? WHERE user_id = ?', (user_input, user_id))
             conn_settinngs.commit()
-            await update.message.reply_text("Starting prompt updated.")
+            message = await update.message.reply_text("Starting prompt updated.")
+            context.user_data.setdefault('sent_messages', []).append(message.message_id)
+
+            from main import cleanup
+            await cleanup(update, context)
+            
             await show_current_settings(update, context)
             return SELECTING_OPTION
     except ValueError:
-        await update.message.reply_text("Please enter a valid sentence or \"Empty\" if you do not want a starting prompt.")
+        message = await update.message.reply_text("Please enter a valid sentence or \"Empty\" if you do not want a starting prompt.")
+        context.user_data.setdefault('sent_messages', []).append(message.message_id)
         return ENTERING_N
 
 async def reset_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -308,28 +356,32 @@ async def reset_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     return SELECTING_OPTION
 
 def settings_menu_handler():
+    from chattingMenu import start
     return {
-            SELECTING_OPTION: [CallbackQueryHandler(option_selected)],
-            SELECTING_PROVIDER: [CallbackQueryHandler(provider_selected)],
-            SELECTING_MODEL: [CallbackQueryHandler(model_selected)],
-            ENTERING_TEMPERATURE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, temperature_entered),
-                CallbackQueryHandler(back_to_settings, pattern="^back_to_settings$")
+        SELECTING_OPTION: [
+            CallbackQueryHandler(option_selected),
+            CommandHandler("start", start),
             ],
-            ENTERING_MAX_TOKENS: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, max_tokens_entered),
-                CallbackQueryHandler(back_to_settings, pattern="^back_to_settings$")
-                ],
-            ENTERING_N: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, n_entered),
-                CallbackQueryHandler(back_to_settings, pattern="^back_to_settings$")
-                ],
-            ENTERING_START_PROMPT: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, start_prompt_entered),
-                CallbackQueryHandler(back_to_settings, pattern="^back_to_settings$")
-                ],
-            SELECT_RESET: [CallbackQueryHandler(reset_selected)]
-        }
+        SELECTING_PROVIDER: [CallbackQueryHandler(provider_selected)],
+        SELECTING_MODEL: [CallbackQueryHandler(model_selected)],
+        ENTERING_TEMPERATURE: [
+            MessageHandler(filters.TEXT & ~filters.COMMAND, temperature_entered),
+            CallbackQueryHandler(back_to_settings, pattern="^back_to_settings$"),
+        ],
+        ENTERING_MAX_TOKENS: [
+            MessageHandler(filters.TEXT & ~filters.COMMAND, max_tokens_entered),
+            CallbackQueryHandler(back_to_settings, pattern="^back_to_settings$")
+        ],
+        ENTERING_N: [
+            MessageHandler(filters.TEXT & ~filters.COMMAND, n_entered),
+            CallbackQueryHandler(back_to_settings, pattern="^back_to_settings$")
+        ],
+        ENTERING_START_PROMPT: [
+            MessageHandler(filters.TEXT & ~filters.COMMAND, start_prompt_entered),
+            CallbackQueryHandler(back_to_settings, pattern="^back_to_settings$")
+        ],
+        SELECT_RESET: [CallbackQueryHandler(reset_selected)],
+    }
 
 def get_current_settings(user_id) -> tuple:
     c.execute('SELECT * FROM user_preferences WHERE user_id = ?', (user_id,))
