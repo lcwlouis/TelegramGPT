@@ -59,8 +59,15 @@ anthropic = AsyncAnthropic(api_key=CLAUDE_API_KEY)
 # Create an instance of the Gemini API
 gemini.configure(api_key=GEMINI_API_KEY)
 
+
+DB_DIR = os.getenv('DB_DIR')
+DB_FILE = 'chats.db'
+DB_PATH = os.path.join(DB_DIR, DB_FILE)
+
+os.makedirs(DB_DIR, exist_ok=True)
+
 # Initialize sqlite database to store and retrieve the chat history
-conn_chats = sqlite3.connect('chats.db')
+conn_chats = sqlite3.connect(DB_PATH)
 
 c = conn_chats.cursor()
 

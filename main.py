@@ -148,7 +148,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 
 # Main
 def main() -> None:
-    persistence = PicklePersistence(filepath="user_data")
+    persistence = PicklePersistence(filepath="/app/db_data/user_data.pickle")
     application = ApplicationBuilder().token(TOKEN).persistence(persistence).build()
     # application = ApplicationBuilder().token(TOKEN).build()
     callback_handler = TypeHandler(Update, callback)

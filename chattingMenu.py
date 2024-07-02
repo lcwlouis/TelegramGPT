@@ -5,6 +5,7 @@ import os
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler, MessageHandler, filters
+from dotenv import load_dotenv
 from backend import build_message_list, build_message_list_gpt, build_message_list_claude, build_message_list_gemini, chat_with_gpt, chat_with_claude, chat_with_gemini ,image_gen_with_openai, VISION_MODELS
 from settingsMenu import get_current_settings
 
@@ -15,8 +16,15 @@ SELECTING_CHAT, CREATE_NEW_CHAT, CHATTING, RETURN_TO_MENU = range(4)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+load_dotenv()
+DB_DIR = os.getenv('DB_DIR')
+DB_FILE = 'chats.db'
+DB_PATH = os.path.join(DB_DIR, DB_FILE)
+
+os.makedirs(DB_DIR, exist_ok=True)
+
 # Initialize sqlite database to store and retrieve the chat history
-conn_chats = sqlite3.connect('chats.db')
+conn_chats = sqlite3.connect(DB_PATH)
 
 c = conn_chats.cursor()
 c.execute('''

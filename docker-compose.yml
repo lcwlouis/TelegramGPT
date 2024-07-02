@@ -9,6 +9,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    volumes:
+      - ./db_data:/app/db_data
 
 networks:
   teleapp:
