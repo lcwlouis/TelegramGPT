@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 # Telegram bot token
-TOKEN: Final = os.getenv('TELEGRAM_BOT_TOKEN_DEV')
+TOKEN: Final = os.getenv(f'TELEGRAM_BOT_TOKEN_{os.getenv("ENVIRONMENT")}')
 # BOT_USERNAME: Final = os.getenv('TELEGRAM_BOT_USERNAME') # Not used
 
 # Load whitelisted telegram ids
@@ -57,6 +57,14 @@ ERROR_CHAT_ID = int(os.getenv('TELEGRAM_ERROR_CHAT_ID'))
 
 # Define shared states
 SELECTING_CHAT, CREATE_NEW_CHAT, CHATTING, RETURN_TO_MENU = range(4)
+
+# load directory
+DB_DIR = os.getenv('DB_DIR')
+PICKLE_DIR = 'user_data.pickle'
+PICKLE_PATH = os.path.join(DB_DIR, PICKLE_DIR)
+
+os.makedirs(DB_DIR, exist_ok=True)
+
 
 async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
@@ -148,7 +156,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 
 # Main
 def main() -> None:
-    persistence = PicklePersistence(filepath="/app/db_data/user_data.pickle")
+    persistence = PicklePersistence(filepath=PICKLE_PATH)
     application = ApplicationBuilder().token(TOKEN).persistence(persistence).build()
     # application = ApplicationBuilder().token(TOKEN).build()
     callback_handler = TypeHandler(Update, callback)

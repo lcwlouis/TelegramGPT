@@ -6,7 +6,7 @@ from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 from dotenv import load_dotenv
-from backend import build_message_list, build_message_list_gpt, build_message_list_claude, build_message_list_gemini, chat_with_gpt, chat_with_claude, chat_with_gemini ,image_gen_with_openai, VISION_MODELS
+from backend import build_message_list, build_message_list_gpt, build_message_list_claude, build_message_list_gemini, build_message_list_ollama, chat_with_gpt, chat_with_claude, chat_with_gemini, chat_with_ollama,image_gen_with_openai, VISION_MODELS
 from settingsMenu import get_current_settings
 
 # Define conversation states
@@ -75,9 +75,9 @@ async def show_chats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     if len(chats) > 0:
-        message_text = f"<b><u>Hello {update.effective_user.first_name}</u></b>! Welcome to the <b>Universalis</b>, I am here to answer your questions about anything. \n\n<u>Select a chat or create a new one</u>:\n==================================="
+        message_text = f"<b><u>Hello {update.effective_user.first_name}</u></b>! Welcome to the <b>Universalis</b>, I am here to answer your questions about anything. \n\n<u>Select a chat or create a new one</u>:\n"
     else:
-        message_text = f"<b><u>Hello {update.effective_user.first_name}</u></b>! Welcome to the <b>Universalis</b>, I am here to answer your questions about anything. \n\n<u>Create a new chat</u>:\n==================================="
+        message_text = f"<b><u>Hello {update.effective_user.first_name}</u></b>! Welcome to the <b>Universalis</b>, I am here to answer your questions about anything. \n\n<u>Create a new chat</u>:\n"
     
     # await context.bot.send_message(chat_id=update.effective_chat.id, text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
     try:
@@ -240,11 +240,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         bot_message = await update.message.reply_text("Working hard...")
         context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
         input_tokens, output_tokens, role, message = await chat_with_gemini(user_message, model=model, temperature=temperature, max_tokens=max_tokens, message_history=chat_history, system=start_prompt)
-
-        # messages = build_message_list_google(chat_history)
-        # bot_message = await update.message.reply_text("Working hard...")
-        # context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
-        # input_tokens, output_tokens, role, message = chat_with_google(messages, model=model, temperature=temperature, max_tokens=max_tokens, n=n)
+    elif provider == 'ollama':
+        chat_history = build_message_list_ollama(chat_history)
+        bot_message = await update.message.reply_text("Working hard...")
+        context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
+        input_tokens, output_tokens, role, message = await chat_with_ollama(chat_history, model=model, temperature=temperature, max_tokens=max_tokens)
 
     # Save AI response to database
     c.execute("INSERT INTO chat_history (chat_id, message, role) VALUES (?, ?, ?)", 
