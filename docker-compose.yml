@@ -1,17 +1,19 @@
-version: "3.8"
-
 services:
-  teleapp:
-    container_name: teleapp
-    image: lcwlouis/teleapp:latest
+  telegpt:
+    container_name: telegpt
+    image: lcwlouis/telegpt:latest
+    restart: always
     networks:
-      - teleapp
+      - telegpt
     build:
       context: .
       dockerfile: Dockerfile
     volumes:
-      - ./db_data:/app/db_data
+      - telegpt:/app/db_data
 
 networks:
-  teleapp:
+  telegpt:
     driver: bridge
+
+volumes:
+  telegpt:

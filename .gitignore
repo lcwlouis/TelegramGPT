@@ -4,4 +4,4 @@ old_sys_prompts
 .DS_Store
 system_prompt.txt
 title_system_prompt.txt
-app/db_data
+app
