@@ -4,6 +4,7 @@ import sqlite3
 import os
 import base64
 import aiohttp
+import requests
 import google.generativeai as gemini
 from io import BytesIO
 from PIL import Image
@@ -46,6 +47,9 @@ CLAUDE_API_KEY = os.getenv('CLAUDE_API_KEY')
 
 # Set up Google API credentials
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+
+# Set up url to Ollama API
+OLLAMA_URL = os.getenv('OLLAMA_URL')
 
 # Create an instance of the OpenAI API
 openai = OpenAI()
@@ -106,12 +110,27 @@ def build_message_list_gpt(chat_history) -> list:
 
 # Message list builder for claude
 def build_message_list_claude(chat_history) -> list:
+    # Claude enforces that assistant must alternate with user
     messages = []
     prev_message_type = ""
     image = None
     for message_type, message, role in chat_history:
         if role == 'system':
             continue
+        if len(messages) > 1 and messages[-1].get('role') == 'user' and role == 'user':
+            messages.append( {
+            "role": "assistant",
+            "content": [
+                {"type": "text", "text": "Ignore this message"}
+                ]
+            })
+        elif len(messages) > 1 and messages[-1].get('role') == 'assistant' and role == 'assistant':
+            messages.append( {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "Ignore this message"}
+                ]
+            })
         if prev_message_type == "image_url":
             messages.append({
             "role": role,
@@ -129,6 +148,21 @@ def build_message_list_claude(chat_history) -> list:
             image = None
             continue
         if message_type == 'text':
+            # if len(messages) > 1 and messages[-1].get('role') == 'user' and role == 'user':
+            #     messages.append( {
+            #     "role": "assistant",
+            #     "content": [
+            #         {"type": "text", "text": "Blank"}
+            #         ]
+            #     })
+            # elif len(messages) > 1 and messages[-1].get('role') == 'assistant' and role == 'assistant':
+            #     messages.append( {
+            #     "role": "user",
+            #     "content": [
+            #         {"type": "text", "text": "Blank"}
+            #         ]
+            #     })
+            # else:
             messages.append({
             "role": role, 
             "content": [
@@ -155,6 +189,7 @@ def chat_with_gpt(messages, model='gpt-3.5-turbo', temperature=0.5, max_tokens=1
 
 # function to interact with Claude
 async def chat_with_claude(messages, model='claude-3-haiku-20240307', temperature=0.5, max_tokens=100, system="") -> str:
+    system = system.replace('{{DATE}}', get_current_date()).replace('{{DAY}}', get_current_weekday())
     response = await anthropic.messages.create(
         model=model,
         max_tokens=max_tokens,
@@ -167,18 +202,28 @@ async def chat_with_claude(messages, model='claude-3-haiku-20240307', temperatur
         return None
     return process_response_from_claude(response)
 
+# function to interact with Gemini
+def chat_with_gemini(messages, model='gemini-1.5-flash', temperature=0.5, max_tokens=100) -> str:
+    return "0"
+
+# function to interact with Ollama
+def chat_with_ollama(messages, model, temperature=0.5, max_tokens=100) -> str:
+    return "0"
+
+
 # function to interact with openai's dalle
 async def image_gen_with_openai(prompt, model='dall-e-3',n=1, size="1024x1024") -> str:
-    response = openai.images.generate(
-        model=model,
-        prompt=prompt,
-        n=n,
-        size=size
-    )
+    # response = openai.images.generate(
+    #     model=model,
+    #     prompt=prompt,
+    #     n=n,
+    #     size=size
+    # )
     # Download the file and convert to base64
-    image_url = response.data[0].url
-    # DEBUG PLACEHOLDER URL
-    # image_url = "https://www.gstatic.com/webp/gallery/1.jpg"
+    # image_url = response.data[0].url
+    
+    image_url = "https://www.gstatic.com/webp/gallery/1.jpg" # DEBUG PLACEHOLDER URL
+
     # if response.data:
     if image_url:
         # image_url = response.data[0].url
@@ -221,6 +266,17 @@ def get_available_gemini_models() -> list:
     available_models = sorted([model for model in available_models if 'gemini' and '1.5' in model])
     return available_models
 
+def get_available_ollama_models() -> list:
+    # Get this via POST request
+    available_models = []
+    res = requests.get(f'{OLLAMA_URL}/api/tags')
+    if res.status_code == 200:
+        data = res.json().get('models', [])
+        available_models = [data[i]['name'] for i in range(len(data)) if 'embed' not in data[i]['name']]
+        available_models = sorted(available_models)
+    return available_models
+
+
 def process_response_for_telegram_style(response) -> str:
     # Ensures response is in the MarkdownV2 format that Telegram has required while maintaining formatting, not just escaping everything
     response = response.replace('[', '\\[').replace(']', '\\]').replace('(', '\\(').replace(')', '\\)').replace('#', '\\#').replace('+', '\\+').replace('-', '\\-').replace('=', '\\=').replace('{', '\\{').replace('}', '\\}').replace('.', '\\.').replace('!', '\\!') # .replace('_', '\\_').replace('*', '\\*').replace('~', '\\~').replace('`', '\\`').replace('>', '\\>').replace('|', '\\|')
@@ -245,3 +301,4 @@ def process_response_from_claude(response) -> tuple:
     message = message.replace('<h1>', '<b><u>').replace('</h1>', '</u></b>').replace('<h2>', '<b>').replace('</h2>', '</b>').replace('<h3>', '<u>').replace('</h3>', '</u>').replace('<h4>', '<i>').replace('</h4>', '</i>').replace('<h5>', '').replace('</h5>', '').replace('<h6>', '').replace('</h6>', '').replace('<big>', '<b>').replace('</big>', '</b>')
 
     return input_tokens, output_tokens, role, message
+

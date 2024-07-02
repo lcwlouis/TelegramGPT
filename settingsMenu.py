@@ -183,7 +183,7 @@ async def model_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await show_current_settings(update, context)
         return SELECTING_OPTION
     
-    selected_model = query.data.split(":")[1]
+    selected_model = query.data.split("_model:")[1]
     context.user_data['settings'][1] = selected_model
     
     # Update the database
