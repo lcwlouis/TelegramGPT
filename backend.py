@@ -34,6 +34,7 @@ VISION_MODELS: Final = [
     'claude-3-sonnet-20240229',
     'claude-3-opus-20240229',
     'claude-3-5-sonnet-20240620',
+    'llava-llama3:latest',
 ]
 
 # Set up system prompt
@@ -206,6 +207,31 @@ def build_message_list_gemini(chat_history) -> list:
             })
     return messages
 
+def build_message_list_ollama(chat_history) -> list:
+    messages = []
+    prev_message_type = ""
+    image = None
+    for message_type, message, role in chat_history:
+        if prev_message_type == "image_url":
+            messages.append({
+            "role": role,
+            "content": message,
+            "images": [image]
+            })
+            prev_message_type = ""
+            image = None
+            continue
+        if message_type == 'text':
+            messages.append({
+            "role": role, 
+            "content": message
+            })
+        elif message_type == 'image_url':
+            prev_message_type = message_type
+            image = message
+
+    return messages
+
 # Define to interact with OpenAI GPT
 async def chat_with_gpt(messages, model='gpt-3.5-turbo', temperature=0.5, max_tokens=100, n=1) -> str:
     # print(messages)
@@ -260,8 +286,24 @@ async def chat_with_gemini(input_message, model='gemini-1.5-flash', temperature=
     return process_response_from_gemini(response)
 
 # function to interact with Ollama
-def chat_with_ollama(messages, model, temperature=0.5, max_tokens=100) -> str:
-    return "0"
+async def chat_with_ollama(messages, model, temperature=0.5, max_tokens=100) -> str:
+    jsonData = {
+            "model": model,
+            "messages": messages,
+            "options": {
+                "temperature": temperature,
+                "max_tokens": max_tokens
+            },
+            "keep_alive": "10m",
+            "stream": False,
+        }
+    async with aiohttp.ClientSession() as session:
+        async with session.post(f'{OLLAMA_URL}/api/chat', json=jsonData) as response:
+            data = await response.json()
+            if data:
+                return process_response_from_ollama(data)
+            else:
+                return 0, 0, "assistant", f"An error occurred while interacting with Ollama. Please try again later. Error code: {response.status_code}"
 
 
 # function to interact with openai's dalle
@@ -346,7 +388,6 @@ def process_response_from_claude(response) -> tuple:
     message = response.content[0].text
     message = re.sub(r'<(a|article|p|br|li|sup|sub|abbr|small|ul|/a|/article|/p|/li|/sup|/sub|/abbr|/small|/ul)>', '', message)
     message = message.replace('<h1>', '<b><u>').replace('</h1>', '</u></b>').replace('<h2>', '<b>').replace('</h2>', '</b>').replace('<h3>', '<u>').replace('</h3>', '</u>').replace('<h4>', '<i>').replace('</h4>', '</i>').replace('<h5>', '').replace('</h5>', '').replace('<h6>', '').replace('</h6>', '').replace('<big>', '<b>').replace('</big>', '</b>')
-
     return input_tokens, output_tokens, role, message
 
 def process_response_from_gemini(response) -> tuple:
@@ -354,4 +395,15 @@ def process_response_from_gemini(response) -> tuple:
     output_tokens = response.usage_metadata.candidates_token_count
     role = "assistant" if response.candidates[0].content.role == "model" else response.candidates[0].content.role
     message = response.text
+    message = re.sub(r'<(a|article|p|br|li|sup|sub|abbr|small|ul|/a|/article|/p|/li|/sup|/sub|/abbr|/small|/ul)>', '', message)
+    message = message.replace('<h1>', '<b><u>').replace('</h1>', '</u></b>').replace('<h2>', '<b>').replace('</h2>', '</b>').replace('<h3>', '<u>').replace('</h3>', '</u>').replace('<h4>', '<i>').replace('</h4>', '</i>').replace('<h5>', '').replace('</h5>', '').replace('<h6>', '').replace('</h6>', '').replace('<big>', '<b>').replace('</big>', '</b>')
+    return input_tokens, output_tokens, role, message
+
+def process_response_from_ollama(response) -> tuple:
+    input_tokens = response.get('prompt_eval_count')
+    output_tokens = response.get('eval_count')
+    role = response.get('message').get('role')
+    message = response.get('message').get('content')
+    message = re.sub(r'<(a|article|p|br|li|sup|sub|abbr|small|ul|/a|/article|/p|/li|/sup|/sub|/abbr|/small|/ul)>', '', message)
+    message = message.replace('<h1>', '<b><u>').replace('</h1>', '</u></b>').replace('<h2>', '<b>').replace('</h2>', '</b>').replace('<h3>', '<u>').replace('</h3>', '</u>').replace('<h4>', '<i>').replace('</h4>', '</i>').replace('<h5>', '').replace('</h5>', '').replace('<h6>', '').replace('</h6>', '').replace('<big>', '<b>').replace('</big>', '</b>')
     return input_tokens, output_tokens, role, message
