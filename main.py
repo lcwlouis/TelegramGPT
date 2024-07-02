@@ -1,8 +1,10 @@
 import logging
 import os
+import traceback, html, json
 from typing import Final
 from dotenv import load_dotenv
 from telegram import Update
+from telegram.constants import ParseMode
 from telegram.ext import (
     ApplicationHandlerStop,
     ApplicationBuilder,
@@ -50,6 +52,9 @@ TOKEN: Final = os.getenv('TELEGRAM_BOT_TOKEN_DEV')
 admin_telegram_id = int(os.getenv('TELEGRAM_ADMIN_ID'))
 whitelisted_telegram_id = get_all_user_ids()
 
+# Load error chat id
+ERROR_CHAT_ID = int(os.getenv('TELEGRAM_ERROR_CHAT_ID'))
+
 # Define shared states
 SELECTING_CHAT, CREATE_NEW_CHAT, CHATTING, RETURN_TO_MENU = range(4)
 
@@ -67,7 +72,7 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_user.id in whitelisted_telegram_id:
         pass
     else:
-        message = await update.effective_message.reply_text(f"Hey! You are not allowed to use me! Ask the admin to add your user id: <code>{update.effective_user.id}</code>", parse_mode="HTML")
+        message = await update.effective_message.reply_text(f"Hey! You are not allowed to use me! Ask the admin to add your user id: <code>{update.effective_user.id}</code>", parse_mode=ParseMode.HTML)
         context.user_data.setdefault('sent_messages', []).append(message.message_id)
         raise ApplicationHandlerStop
 
@@ -75,14 +80,14 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if update.effective_user.id == admin_telegram_id:
         pass
     else:
-        message = await update.effective_message.reply_text("You are not allowed to use me!", parse_mode="HTML")
+        message = await update.effective_message.reply_text("You are not allowed to use me!", parse_mode=ParseMode.HTML)
         context.user_data.setdefault('sent_messages', []).append(message.message_id)
         raise ApplicationHandlerStop
 
 async def cleanup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # Delete all messages before the next message
     if 'sent_messages' in context.user_data:
-        min_id = min(context.user_data['sent_messages']) - 1
+        min_id = min(context.user_data['sent_messages'])
         max_id = max(context.user_data['sent_messages']) + 1
         for message_id in range(min_id, max_id):
             try:
@@ -108,17 +113,44 @@ async def admin_add_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         if user_id.isdigit() and int(user_id) not in whitelisted_telegram_id and not None:
             add_user(user_id)
             whitelisted_telegram_id.append(int(user_id))
-            message = await update.effective_message.reply_text(f"User id <code>{user_id}</code> added successfully", parse_mode="HTML")
+            message = await update.effective_message.reply_text(f"User id <code>{user_id}</code> added successfully", parse_mode=ParseMode.HTML)
             context.user_data.setdefault('sent_messages', []).append(message.message_id)
     else:
-        message = await update.effective_message.reply_text("You are not allowed to use me!", parse_mode="HTML")
+        message = await update.effective_message.reply_text("You are not allowed to use me!", parse_mode=ParseMode.HTML)
         context.user_data.setdefault('sent_messages', []).append(message.message_id)
+
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Log the error and send a telegram message to notify the developer."""
+    # Log the error before we do anything else, so we can see it even if something breaks.
+    logger.error("Exception while handling an update:", exc_info=context.error)
+
+    # traceback.format_exception returns the usual python message about an exception, but as a
+    # list of strings rather than a single string, so we have to join them together.
+    tb_list = traceback.format_exception(None, context.error, context.error.__traceback__)
+    tb_string = "".join(tb_list)
+
+    # Build the message with some markup and additional information about what happened.
+    # You might need to add some logic to deal with messages longer than the 4096 character limit.
+    update_str = update.to_dict() if isinstance(update, Update) else str(update)
+    message = (
+        "An exception was raised while handling an update\n"
+        f"<pre>update = {html.escape(json.dumps(update_str, indent=2, ensure_ascii=False))}"
+        "</pre>\n\n"
+        f"<pre>context.chat_data = {html.escape(str(context.chat_data))}</pre>\n\n"
+        f"<pre>context.user_data = {html.escape(str(context.user_data))}</pre>\n\n"
+        f"<pre>{html.escape(tb_string)}</pre>"
+    )
+
+    # Finally, send the message
+    await context.bot.send_message(
+        chat_id=ERROR_CHAT_ID, text=message, parse_mode=ParseMode.HTML
+    )
 
 # Main
 def main() -> None:
-    # persistence = PicklePersistence(filepath="user_data")
-    # application = ApplicationBuilder().token(TOKEN).persistence(persistence).build()
-    application = ApplicationBuilder().token(TOKEN).build()
+    persistence = PicklePersistence(filepath="user_data")
+    application = ApplicationBuilder().token(TOKEN).persistence(persistence).build()
+    # application = ApplicationBuilder().token(TOKEN).build()
     callback_handler = TypeHandler(Update, callback)
 
     # Chats menu
@@ -145,6 +177,9 @@ def main() -> None:
     application.add_handler(chat_menu_handler)
     application.add_handler(settings_handler)
     application.add_handler(admin_add_cmd_handler)
+
+    # Add error handler
+    application.add_error_handler(error_handler)
     
     # Start the bot
     print("Bot polling, will exit on Ctrl+C and continue posting updates if there are warnings or errors")
