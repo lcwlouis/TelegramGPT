@@ -1,6 +1,5 @@
 import sqlite3
 import os
-from dotenv import load_dotenv
 from typing import Final
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.constants import ParseMode
