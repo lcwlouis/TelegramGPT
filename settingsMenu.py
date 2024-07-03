@@ -120,7 +120,7 @@ async def option_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     option = query.data
     
     if option == "show_chats":
-        from chattingMenu import start
+        from chat.chatMenu import start
         await start(update, context)
         return ConversationHandler.END
     elif option == "model":
@@ -373,7 +373,7 @@ async def reset_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     return SELECTING_OPTION
 
 def settings_menu_handler():
-    from chattingMenu import start
+    from chat.chatMenu import start
     return {
         SELECTING_OPTION: [
             CallbackQueryHandler(option_selected),

@@ -20,12 +20,15 @@ from settingsMenu import (
     settings_menu_handler,
     kill_connection as settings_kill_connection
     )
-from chattingMenu import (
+from chat.chatMenu import (
     start,
     show_chats,
     show_help,
+    kill_connection as chatMenu_kill_connection
+)
+from chat.chatHandler import (
     get_chat_handlers,
-    kill_connection as chat_kill_connection
+    kill_connection as chatHandler_kill_connection
 )
 from user import (
     add_user,
@@ -188,7 +191,8 @@ def main() -> None:
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
     # On Ctrl+C exit
-    chat_kill_connection()
+    chatHandler_kill_connection()
+    chatMenu_kill_connection()
     settings_kill_connection()
     user_kill_connection()
     print("Bot polling closed. Exiting...")
