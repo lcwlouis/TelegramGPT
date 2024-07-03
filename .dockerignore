@@ -3,5 +3,5 @@ __pycache__
 *.pyc
 *.pyo
 *.pyd
-db_data
+data
 _old_sys_prompts

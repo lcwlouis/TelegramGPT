@@ -9,7 +9,7 @@ services:
       context: .
       dockerfile: Dockerfile
     volumes:
-      - telegpt:/app/db_data
+      - telegpt:/app/data
 
 networks:
   telegpt:
