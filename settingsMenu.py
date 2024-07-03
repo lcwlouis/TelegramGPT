@@ -5,7 +5,11 @@ from typing import Final
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, CallbackQueryHandler, MessageHandler, filters
-from backend import get_available_openai_models, get_available_claude_models, get_available_gemini_models, get_available_ollama_models
+# from backend import get_available_openai_models, get_available_claude_models, get_available_gemini_models, get_available_ollama_models
+import providers.gptHandler as gpt
+import providers.claudeHandler as claude
+import providers.geminiHandler as gemini
+import providers.ollamaHandler as ollama
 
 load_dotenv() 
 
@@ -157,7 +161,7 @@ def provider_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 def claude_model_keyboard() -> InlineKeyboardMarkup:
-    models = get_available_claude_models()
+    models = claude.get_available_claude_models()
     keyboard = [
         [InlineKeyboardButton(model, callback_data=f"select_model:{model}") for model in models[model_pair*COLUMNS:model_pair*COLUMNS+COLUMNS]]
         for model_pair in range(len(models))
@@ -165,7 +169,7 @@ def claude_model_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 def openai_model_keyboard() -> InlineKeyboardMarkup:
-    models = get_available_openai_models()
+    models = gpt.get_available_openai_models()
     keyboard = [
         [InlineKeyboardButton(model, callback_data=f"select_model:{model}") for model in models[model_pair*COLUMNS:model_pair*COLUMNS+COLUMNS]]
         for model_pair in range(len(models))
@@ -173,7 +177,7 @@ def openai_model_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 def google_model_keyboard() -> InlineKeyboardMarkup:
-    models = get_available_gemini_models()
+    models = gemini.get_available_gemini_models()
     keyboard = [
         [InlineKeyboardButton(model, callback_data=f"select_model:{model}") for model in models[model_pair*COLUMNS:model_pair*COLUMNS+COLUMNS]]
         for model_pair in range(len(models))
@@ -181,7 +185,7 @@ def google_model_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 def ollama_model_keyboard() -> InlineKeyboardMarkup:
-    models = get_available_ollama_models()
+    models = ollama.get_available_ollama_models()
     keyboard = [
         [InlineKeyboardButton(model, callback_data=f"select_model:{model}") for model in models[model_pair*COLUMNS:model_pair*COLUMNS+COLUMNS]]
         for model_pair in range(len(models))
