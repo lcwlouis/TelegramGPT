@@ -84,14 +84,6 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         context.user_data.setdefault('sent_messages', []).append(message.message_id)
         raise ApplicationHandlerStop
 
-async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.effective_user.id == admin_telegram_id:
-        pass
-    else:
-        message = await update.effective_message.reply_text("You are not allowed to use me!", parse_mode=ParseMode.HTML)
-        context.user_data.setdefault('sent_messages', []).append(message.message_id)
-        raise ApplicationHandlerStop
-
 async def cleanup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # Delete all messages before the next message
     if 'sent_messages' in context.user_data:
@@ -127,8 +119,9 @@ async def admin_add_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         message = await update.effective_message.reply_text("You are not allowed to use me!", parse_mode=ParseMode.HTML)
         context.user_data.setdefault('sent_messages', []).append(message.message_id)
 
+# Error handler taken from python telegram bot examples
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Log the error and send a telegram message to notify the developer."""
+    # """Log the error and send a telegram message to notify the developer."""
     # Log the error before we do anything else, so we can see it even if something breaks.
     logger.error("Exception while handling an update:", exc_info=context.error)
 
@@ -176,7 +169,8 @@ def main() -> None:
         fallbacks=[CallbackQueryHandler(settings, pattern="^settings$")],
         per_message=False
     )
-
+    
+    # Handle adding users by admin
     admin_add_cmd_handler = CommandHandler("admin_add", admin_add_user)
 
     # Add handlers
