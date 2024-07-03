@@ -19,11 +19,19 @@ SELECTING_CHAT, CREATE_NEW_CHAT, CHATTING, RETURN_TO_MENU = range(4)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Initialise path to db
 DB_DIR = os.getenv('DB_DIR')
 DB_FILE = 'chats.db'
 DB_PATH = os.path.join(DB_DIR, DB_FILE)
 
 os.makedirs(DB_DIR, exist_ok=True)
+
+# Initialise path to title system prompt
+PROMPT_DIR = os.getenv('PROMPT_DIR')
+PROMPT_FILE = 'title_system_prompt.txt'
+TITLE_PROMPT_PATH = os.path.join(PROMPT_DIR, PROMPT_FILE)
+
+os.makedirs(PROMPT_DIR, exist_ok=True)
 
 # Initialize sqlite database to store and retrieve the chat history
 conn_chats = sqlite3.connect(DB_PATH)
@@ -55,7 +63,7 @@ conn_chats.commit()
 
 async def handle_save_new_chat(prompt, user_id):
     # Generate a title for the new chat
-    title_prompt = open("title_system_prompt.txt", "r").read()
+    title_prompt = open(TITLE_PROMPT_PATH, "r").read()
     gen_prompt = "The user has asked: " + str(prompt)
     messages = []
     messages = miscHandler.build_message_list("text", title_prompt, "system", messages)

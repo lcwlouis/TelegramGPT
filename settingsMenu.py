@@ -5,19 +5,24 @@ from typing import Final
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, CallbackQueryHandler, MessageHandler, filters
-# from backend import get_available_openai_models, get_available_claude_models, get_available_gemini_models, get_available_ollama_models
 import providers.gptHandler as gpt
 import providers.claudeHandler as claude
 import providers.geminiHandler as gemini
 import providers.ollamaHandler as ollama
 
-load_dotenv() 
-
+# Initialise path to db
 DB_DIR = os.getenv('DB_DIR')
 DB_FILE = 'user_preferences.db'
 DB_PATH = os.path.join(DB_DIR, DB_FILE)
 
 os.makedirs(DB_DIR, exist_ok=True)
+
+# Initialise path to system prompt
+PROMPT_DIR = os.getenv('PROMPT_DIR')
+PROMPT_FILE = 'system_prompt.txt'
+PROMPT_PATH = os.path.join(PROMPT_DIR, PROMPT_FILE)
+
+os.makedirs(PROMPT_DIR, exist_ok=True)
 
 # start sqlite3
 conn_settinngs = sqlite3.connect(DB_PATH)
@@ -28,7 +33,7 @@ COLUMNS: Final = 2
 SELECTING_OPTION, SELECTING_MODEL, ENTERING_TEMPERATURE, ENTERING_MAX_TOKENS, ENTERING_N, ENTERING_START_PROMPT, SELECT_RESET, SELECTING_PROVIDER = range(4, 12)
 
 # Default starting message from file system_prompt.txt
-DEFAULT_STARTING_MESSAGE = open('./system_prompt.txt', 'r').read()
+DEFAULT_STARTING_MESSAGE = open(PROMPT_PATH, 'r').read()
 
 # Store user preferences in database
 c = conn_settinngs.cursor()

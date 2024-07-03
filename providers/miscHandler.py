@@ -1,4 +1,5 @@
 # Importing required libraries
+import os
 import logging
 from typing import Final
 from helpers.dateHelper import get_current_date, get_current_weekday
@@ -18,8 +19,14 @@ VISION_MODELS: Final = [
     'llava-llama3:latest',
 ]
 
+PROMPT_DIR = os.getenv('PROMPT_DIR')
+PROMPT_FILE = 'system_prompt.txt'
+PROMPT_PATH = os.path.join(PROMPT_DIR, PROMPT_FILE)
+
+os.makedirs(PROMPT_DIR, exist_ok=True)
+
 # Set up system prompt
-DEFAULT_SYSTEM_PROMPT = open('./system_prompt.txt', 'r').read()
+DEFAULT_SYSTEM_PROMPT = open(PROMPT_PATH, 'r').read()
 
 # Message List Builder
 def build_message_list(message_type, message, role, cur_list=[]) -> list:
