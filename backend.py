@@ -308,16 +308,16 @@ async def chat_with_ollama(messages, model, temperature=0.5, max_tokens=100) -> 
 
 # function to interact with openai's dalle
 async def image_gen_with_openai(prompt, model='dall-e-3',n=1, size="1024x1024") -> str:
-    # response = openai.images.generate(
-    #     model=model,
-    #     prompt=prompt,
-    #     n=n,
-    #     size=size
-    # )
+    response = openai.images.generate(
+        model=model,
+        prompt=prompt,
+        n=n,
+        size=size
+    )
     # Download the file and convert to base64
-    # image_url = response.data[0].url
+    image_url = response.data[0].url
     
-    image_url = "https://www.gstatic.com/webp/gallery/1.jpg" # DEBUG PLACEHOLDER URL
+    # image_url = "https://www.gstatic.com/webp/gallery/1.jpg" # DEBUG PLACEHOLDER URL
 
     # if response.data:
     if image_url:
