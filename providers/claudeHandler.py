@@ -1,8 +1,13 @@
 import os
 import re
+import logging
 from typing import Final
 from anthropic import AsyncAnthropic
 from helpers.dateHelper import get_current_date, get_current_weekday
+
+# Initialize logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Since there is no API endpoint to check for available models, this is to be manually updated
 ANTHROPIC_MODELS: Final = [
@@ -26,14 +31,14 @@ def build_message_list_claude(chat_history) -> list:
     for message_type, message, role in chat_history:
         if role == 'system':
             continue
-        if len(messages) > 1 and messages[-1].get('role') == 'user' and role == 'user':
+        if len(messages) > 0 and messages[-1].get('role') == 'user' and role == 'user':
             messages.append( {
             "role": "assistant",
             "content": [
                 {"type": "text", "text": "Ignore this message"}
                 ]
             })
-        elif len(messages) > 1 and messages[-1].get('role') == 'assistant' and role == 'assistant':
+        elif len(messages) > 0 and messages[-1].get('role') == 'assistant' and role == 'assistant':
             messages.append( {
             "role": "user",
             "content": [

@@ -1,7 +1,12 @@
 import os
 import re
+import logging
 from google.generativeai.types import HarmBlockThreshold, HarmCategory
 import google.generativeai as gemini
+
+# Initialize logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Set up Google API credentials
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')

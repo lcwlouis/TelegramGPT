@@ -2,6 +2,11 @@ import re
 import os
 import aiohttp
 import requests
+import logging
+
+# Initialize logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Set up url to Ollama API
 OLLAMA_URL = os.getenv('OLLAMA_URL')

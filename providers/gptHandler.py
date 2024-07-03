@@ -2,10 +2,15 @@ import os
 import re
 import aiohttp
 import base64
+import logging
 from io import BytesIO
 from PIL import Image
 from openai import OpenAI
 from helpers.dateHelper import get_current_date, get_current_weekday
+
+# Initialize logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Set up your OpenAI API credentials
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')

@@ -1,6 +1,11 @@
 # Importing required libraries
+import logging
 from typing import Final
 from helpers.dateHelper import get_current_date, get_current_weekday
+
+# Initialize logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Collection of Vision models
 VISION_MODELS: Final = [
