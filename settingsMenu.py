@@ -35,8 +35,8 @@ c.execute('''CREATE TABLE IF NOT EXISTS user_preferences
           temperature FLOAT DEFAULT 0.7, 
           max_tokens INTEGER DEFAULT 200, 
           n INTEGER DEFAULT 1, 
-          start_prompt TEXT DEFAULT "{0}"
-          )'''.format(DEFAULT_STARTING_MESSAGE))
+          start_prompt TEXT DEFAULT ""
+          )''')
 conn_settinngs.commit()
 
 # Settings 
@@ -45,10 +45,13 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     c.execute('SELECT * FROM user_preferences WHERE user_id = ?', (user_id,))
     result = c.fetchone()
     if result is None:
-        c.execute('INSERT INTO user_preferences (user_id) VALUES (?)', (user_id,))
+        print(f"User {user_id} not found in user_preferences table")
+        print(DEFAULT_STARTING_MESSAGE)
+        c.execute('INSERT INTO user_preferences (user_id, start_prompt) VALUES (?, ?)', (user_id, DEFAULT_STARTING_MESSAGE))
         conn_settinngs.commit()
         c.execute('SELECT * FROM user_preferences WHERE user_id = ?', (user_id,))
         result = c.fetchone()
+        print(result)
     _, provider, model, temperature, max_tokens, n, start_prompt = result
 
     context.user_data['settings'] = [provider, model, temperature, max_tokens, n, start_prompt]
@@ -356,7 +359,7 @@ async def reset_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     user_id = update.effective_user.id
     c.execute('DELETE FROM user_preferences WHERE user_id = ?', (user_id,))
     conn_settinngs.commit()
-    c.execute('INSERT INTO user_preferences (user_id) VALUES (?)', (user_id,))
+    c.execute('INSERT INTO user_preferences (user_id, start_prompt) VALUES (?, ?)', (user_id, DEFAULT_STARTING_MESSAGE))
     conn_settinngs.commit()
     c.execute('SELECT * FROM user_preferences WHERE user_id = ?', (user_id,))
     row = c.fetchone()
@@ -399,7 +402,7 @@ def get_current_settings(user_id) -> tuple:
     if row is not None:
         return row
     else:
-        c.execute('INSERT INTO user_preferences (user_id) VALUES (?)', (user_id,))
+        c.execute('INSERT INTO user_preferences (user_id, start_prompt) VALUES (?, ?)', (user_id, DEFAULT_STARTING_MESSAGE))
         conn_settinngs.commit()
         c.execute('SELECT * FROM user_preferences WHERE user_id = ?', (user_id,))
         row = c.fetchone()

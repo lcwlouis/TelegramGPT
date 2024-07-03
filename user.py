@@ -2,6 +2,8 @@ import sqlite3
 import os
 from dotenv import load_dotenv
 
+DEFAULT_STARTING_MESSAGE = open('./system_prompt.txt', 'r').read()
+
 load_dotenv()
 
 DB_DIR = os.getenv('DB_DIR')
@@ -28,7 +30,7 @@ def add_user(user_id: int) -> None:
     # insert user only if they don't exist
     c.execute("SELECT user_id FROM user_preferences WHERE user_id=?", (user_id,))
     if c.fetchone() is None:
-        c.execute("INSERT INTO user_preferences (user_id) VALUES (?)", (user_id,))
+        c.execute("INSERT INTO user_preferences (user_id, start_prompt) VALUES (?, ?)", (user_id, DEFAULT_STARTING_MESSAGE))
     conn_users.commit()
 
 def kill_connection() -> None:
