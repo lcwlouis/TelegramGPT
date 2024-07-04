@@ -5,12 +5,13 @@ import base64
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler, MessageHandler, filters
+
 import providers.miscHandler as miscHandler
 import providers.gptHandler as gpt
 import providers.claudeHandler as claude
 import providers.geminiHandler as gemini
 import providers.ollamaHandler as ollama
-from settingsMenu import get_current_settings
+import settings.settingHandler as settingHandler
 
 # Define conversation states
 SELECTING_CHAT, CREATE_NEW_CHAT, CHATTING, RETURN_TO_MENU = range(4)
@@ -97,7 +98,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     print(f"{user_id}: {user_message}") # DEBUG_USE
     # Get current settings
-    _, provider, model, temperature, max_tokens, n, start_prompt = get_current_settings(user_id)
+    _, provider, model, temperature, max_tokens, n, start_prompt = settingHandler.get_current_settings(user_id)
     chat_id = context.user_data.get('current_chat_id')
     if chat_id is None:
         chat_id, chat_title = await handle_save_new_chat(user_message, user_id)
@@ -159,9 +160,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn_chats.commit()
 
     reply = f"""
-                <u><b>Universalis</b></u>: \n{message} \n\n
-                Input: <code>{input_tokens}</code> tokens | Output: <code>{output_tokens}</code> tokens\n
-                Total input used: <code>{total_input_tokens}</code> tokens | Total output used: <code>{total_output_tokens}</code> tokens
+                <u><b>Universalis</b></u>: \n{message} 
+Input: <code>{input_tokens}</code> tokens | Output: <code>{output_tokens}</code> tokens
+Total input used: <code>{total_input_tokens}</code> tokens | Total output used: <code>{total_output_tokens}</code> tokens
             """
     
     try:
@@ -174,6 +175,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_gen_image(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     chat_id = context.user_data.get('current_chat_id')
     # Extract prompt from behind /image command
+    if len(update.message.text.split(' ', 1)) == 1:
+        message = await update.message.reply_text("Please enter an image prompt.")
+        context.user_data.setdefault('sent_messages', []).append(message.message_id)
+        return CHATTING
     prompt = update.message.text.split(' ', 1)[1]
     # print(prompt) # DEBUG_USE
     stored_message = "Generate an image prompt: " + prompt
@@ -243,7 +248,7 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return CHATTING
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    _, provider, model, temperature, max_tokens, n, start_prompt = get_current_settings(update.effective_user.id)
+    _, provider, model, temperature, max_tokens, n, start_prompt = settingHandler.get_current_settings(update.effective_user.id)
     # Check the model being used, if it is not a vision model as listed tell user to change the model choice
     if model not in miscHandler.VISION_MODELS:
         message =await update.message.reply_text(f"Please select a model from the list: {', '.join(miscHandler.VISION_MODELS)}")
@@ -273,7 +278,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_id = update.effective_user.id
             print(f"{user_id}: {user_message}") # DEBUG_USE
             # Get current settings
-            _, provider, model, temperature, max_tokens, n, start_prompt = get_current_settings(user_id)
+            _, provider, model, temperature, max_tokens, n, start_prompt = settingHandler.get_current_settings(user_id)
             chat_id = context.user_data.get('current_chat_id')
             if chat_id is None:
                 chat_id, chat_title = await handle_save_new_chat(user_message, user_id)
