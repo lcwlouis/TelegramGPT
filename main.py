@@ -15,7 +15,7 @@ from telegram.ext import (
     ConversationHandler,
     PicklePersistence
 )
-from settingsMenu import (
+from settings.settingHandler import (
     settings, 
     settings_menu_handler,
     kill_connection as settings_kill_connection
