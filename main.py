@@ -30,7 +30,7 @@ from chat.chatHandler import (
     get_chat_handlers,
     kill_connection as chatHandler_kill_connection
 )
-from user import (
+from helpers.userHelper import (
     add_user,
     get_all_user_ids,
     kill_connection as user_kill_connection
