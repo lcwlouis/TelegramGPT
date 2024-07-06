@@ -359,7 +359,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return CHATTING
 
 def get_chat_handlers():
-    from main import exit_menu
+    from helpers.mainHelper import exit_menu
     from chat.chatMenu import create_new_chat, open_chat, show_help, start, del_chat, end_chat
     return {
         SELECTING_CHAT: [
