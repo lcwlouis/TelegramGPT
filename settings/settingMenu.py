@@ -13,6 +13,13 @@ COLUMNS: Final = 2
 # Define conversation states
 SELECTING_OPTION, SELECTING_MODEL, ENTERING_TEMPERATURE, ENTERING_MAX_TOKENS, ENTERING_N, ENTERING_START_PROMPT, SELECT_RESET, SELECTING_PROVIDER, SELECTING_IMAGE_SETTINGS = range(4, 13)
 
+PROVIDERS: Final = [
+    "openai",
+    "claude",
+    "google",
+    "ollama",
+]
+
 def settings_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
         [InlineKeyboardButton("Model", callback_data="model"),
@@ -60,12 +67,10 @@ def back_keyboard() -> InlineKeyboardMarkup:
 
 def provider_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
-        [InlineKeyboardButton("OpenAI", callback_data="openai"),
-        InlineKeyboardButton("Claude", callback_data="claude")],
-        [InlineKeyboardButton("Google", callback_data="google"),
-        InlineKeyboardButton("Ollama", callback_data="ollama")],
-        [InlineKeyboardButton("Back", callback_data="back_to_settings")],
+        [InlineKeyboardButton(provider.title(), callback_data=f"{provider}") for provider in PROVIDERS[model_pair*COLUMNS:model_pair*COLUMNS+COLUMNS]]
+        for model_pair in range(len(PROVIDERS))
     ]
+    keyboard.append([InlineKeyboardButton("Back", callback_data="back_to_settings")])
     return InlineKeyboardMarkup(keyboard)
 
 def claude_model_keyboard() -> InlineKeyboardMarkup:
