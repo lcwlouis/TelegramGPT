@@ -26,7 +26,7 @@ c = conn_chats.cursor()
 
 # Define start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    from main import cleanup
+    from helpers.mainHelper import cleanup
     await cleanup(update, context)
     context.user_data.clear()
     return await show_chats(update, context)
@@ -139,7 +139,7 @@ async def open_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return CHATTING
 
 async def end_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    from main import cleanup
+    from helpers.mainHelper import cleanup
     try:
         del context.user_data['current_chat_id']
         del context.user_data['current_chat_title']
@@ -152,7 +152,7 @@ async def end_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return SELECTING_CHAT
 
 async def del_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    from main import cleanup
+    from helpers.mainHelper import cleanup
     chat_id = context.user_data.get('current_chat_id')
     
     c.execute("DELETE FROM chat_history WHERE chat_id = ?", (chat_id,))

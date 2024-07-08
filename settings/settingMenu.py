@@ -11,7 +11,7 @@ import providers.ollamaHandler as ollama
 COLUMNS: Final = 2
 
 # Define conversation states
-SELECTING_OPTION, SELECTING_MODEL, ENTERING_TEMPERATURE, ENTERING_MAX_TOKENS, ENTERING_N, ENTERING_START_PROMPT, SELECT_RESET, SELECTING_PROVIDER = range(4, 12)
+SELECTING_OPTION, SELECTING_MODEL, ENTERING_TEMPERATURE, ENTERING_MAX_TOKENS, ENTERING_N, ENTERING_START_PROMPT, SELECT_RESET, SELECTING_PROVIDER, SELECTING_IMAGE_SETTINGS = range(4, 13)
 
 def settings_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
@@ -20,8 +20,8 @@ def settings_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton("Max tokens", callback_data="max_tokens"),
         InlineKeyboardButton("N", callback_data="n")],
         [InlineKeyboardButton("Starting Prompt", callback_data="start_prompt"),
-        InlineKeyboardButton("Reset to Default", callback_data="reset_to_default")],
-        [InlineKeyboardButton("Done", callback_data="show_chats")]
+        InlineKeyboardButton("Image Gen Settings", callback_data="image_settings")],
+        [InlineKeyboardButton("Reset to Default", callback_data="reset_to_default"), InlineKeyboardButton("Done", callback_data="show_chats")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -110,3 +110,39 @@ def provider_model_keyboard_switch(provider : str) -> InlineKeyboardMarkup:
         return ollama_model_keyboard()
     else:
         return InlineKeyboardMarkup([])
+
+
+
+
+
+# Image gen settings menu
+def image_model_keyboard() -> InlineKeyboardMarkup:
+    from settings.imageGenHandler import IMAGE_MODELS
+    keyboard = [
+        [InlineKeyboardButton(model, callback_data=f"select_image_model:{model}") for model in IMAGE_MODELS[model_pair*COLUMNS:model_pair*COLUMNS+COLUMNS]]
+        for model_pair in range(len(IMAGE_MODELS))
+    ]
+    keyboard.append([InlineKeyboardButton("Back", callback_data="back_to_image_settings")])
+    return InlineKeyboardMarkup(keyboard)
+
+def image_size_keyboard(model : str) -> InlineKeyboardMarkup:
+    from settings.imageGenHandler import IMAGE_SIZES_DALLE2, IMAGE_SIZES_DALLE3
+    if model == "dall-e-2":
+        IMAGE_SIZES = IMAGE_SIZES_DALLE2
+    elif model == "dall-e-3":
+        IMAGE_SIZES = IMAGE_SIZES_DALLE3
+    keyboard = [
+        [InlineKeyboardButton(size, callback_data=f"select_image_size:{size}") for size in IMAGE_SIZES[model_pair*COLUMNS:model_pair*COLUMNS+COLUMNS]]
+        for model_pair in range(len(IMAGE_SIZES))
+    ]
+    keyboard.append([InlineKeyboardButton("Back", callback_data="back_to_image_settings")])
+    return InlineKeyboardMarkup(keyboard)
+
+# Add this to the existing image_settings_keyboard function
+def image_settings_keyboard() -> InlineKeyboardMarkup:
+    keyboard = [
+        [InlineKeyboardButton("Model", callback_data="select_image_model"),
+        InlineKeyboardButton("Image Size", callback_data="select_image_size")],
+        [InlineKeyboardButton("Back", callback_data="back_to_settings")],
+    ]
+    return InlineKeyboardMarkup(keyboard)

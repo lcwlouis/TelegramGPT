@@ -14,11 +14,14 @@ from telegram.ext import (
     ConversationHandler,
     PicklePersistence
 )
-from settings.settingHandler import (
+from settings.chatCompletionHandler import (
     settings, 
     settings_menu_handler,
     kill_connection as settings_kill_connection
     )
+from settings.imageGenHandler import (
+    kill_connection as imageGen_kill_connection
+)
 from chat.chatMenu import (
     start,
     show_chats,
@@ -133,6 +136,7 @@ def main() -> None:
     chatHandler_kill_connection()
     chatMenu_kill_connection()
     settings_kill_connection()
+    imageGen_kill_connection()
     user_kill_connection()
     print("Bot polling closed. Exiting...")
 

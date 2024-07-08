@@ -6,9 +6,15 @@ from telegram.constants import ParseMode
 from telegram.ext import CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes, ConversationHandler
 
 import settings.settingMenu as settingMenu
+from settings.imageGenHandler import (
+    image_size_selected,
+    image_option_selected,
+    image_model_selected,
+    back_to_image_settings
+)
 
 # Define conversation states
-SELECTING_OPTION, SELECTING_MODEL, ENTERING_TEMPERATURE, ENTERING_MAX_TOKENS, ENTERING_N, ENTERING_START_PROMPT, SELECT_RESET, SELECTING_PROVIDER = range(4, 12)
+SELECTING_OPTION, SELECTING_MODEL, ENTERING_TEMPERATURE, ENTERING_MAX_TOKENS, ENTERING_N, ENTERING_START_PROMPT, SELECT_RESET, SELECTING_PROVIDER, SELECTING_IMAGE_SETTINGS, SELECTING_IMAGE_MODEL, SELECTING_IMAGE_SIZE = range(4, 15)
 
 # Initialise path to db
 DB_DIR = os.getenv('DB_DIR')
@@ -56,7 +62,6 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         conn_settinngs.commit()
         c.execute('SELECT * FROM user_preferences WHERE user_id = ?', (user_id,))
         result = c.fetchone()
-        print(result)
     _, provider, model, temperature, max_tokens, n, start_prompt = result
 
     context.user_data['settings'] = [provider, model, temperature, max_tokens, n, start_prompt]
@@ -100,6 +105,10 @@ async def option_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     elif option == "start_prompt":
         await query.edit_message_text(f"<b><u>Current Starting Prompt</u>: </b> <code>{str(context.user_data['settings'][5])}</code> \n\nEnter a new starting prompt:", reply_markup=settingMenu.back_keyboard(), parse_mode=ParseMode.HTML)
         return ENTERING_START_PROMPT
+    elif option == "image_settings":
+        from settings.imageGenHandler import image_settings
+        await image_settings(update, context)
+        return SELECTING_IMAGE_SETTINGS
     elif option == "reset_to_default":
         await query.edit_message_text("Resetting to default settings...", parse_mode=ParseMode.HTML)
         await reset_selected(update, context)
@@ -159,7 +168,7 @@ async def temperature_entered(update: Update, context: ContextTypes.DEFAULT_TYPE
 
             message = await update.message.reply_text(f"Temperature updated to: {temperature}")
             context.user_data.setdefault('sent_messages', []).append(message.message_id)
-            from main import cleanup
+            from helpers.mainHelper import cleanup
             await cleanup(update, context)
             await settingMenu.show_current_settings(update, context)
             return SELECTING_OPTION
@@ -187,7 +196,7 @@ async def max_tokens_entered(update: Update, context: ContextTypes.DEFAULT_TYPE)
             message = await update.message.reply_text(f"Max tokens updated to: {max_tokens}")
             context.user_data.setdefault('sent_messages', []).append(message.message_id)
             
-            from main import cleanup
+            from helpers.mainHelper import cleanup
             await cleanup(update, context)
 
             await settingMenu.show_current_settings(update, context)
@@ -214,7 +223,7 @@ async def n_entered(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             message = await update.message.reply_text(f"N updated to: {n}")
             context.user_data.setdefault('sent_messages', []).append(message.message_id)
 
-            from main import cleanup
+            from helpers.mainHelper import cleanup
             await cleanup(update, context)
 
             await settingMenu.show_current_settings(update, context)
@@ -250,7 +259,7 @@ async def start_prompt_entered(update: Update, context: ContextTypes.DEFAULT_TYP
             message = await update.message.reply_text("Starting prompt updated.")
             context.user_data.setdefault('sent_messages', []).append(message.message_id)
 
-            from main import cleanup
+            from helpers.mainHelper import cleanup
             await cleanup(update, context)
             
             await settingMenu.show_current_settings(update, context)
@@ -299,6 +308,17 @@ def settings_menu_handler():
             CallbackQueryHandler(settingMenu.back_to_settings, pattern="^back_to_settings$")
         ],
         SELECT_RESET: [CallbackQueryHandler(reset_selected)],
+        SELECTING_IMAGE_SETTINGS: [
+            CallbackQueryHandler(image_option_selected),
+        ],
+        SELECTING_IMAGE_SIZE: [
+            CallbackQueryHandler(image_size_selected),
+            CallbackQueryHandler(back_to_image_settings, pattern="^back_to_image_settings$"),
+        ],
+        SELECTING_IMAGE_MODEL: [
+            CallbackQueryHandler(image_model_selected),
+            CallbackQueryHandler(back_to_image_settings, pattern="^back_to_image_settings$"),
+        ],
     }
 
 def get_current_settings(user_id) -> tuple:

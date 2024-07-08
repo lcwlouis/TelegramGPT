@@ -11,7 +11,8 @@ import providers.gptHandler as gpt
 import providers.claudeHandler as claude
 import providers.geminiHandler as gemini
 import providers.ollamaHandler as ollama
-import settings.settingHandler as settingHandler
+import settings.chatCompletionHandler as chatCompletionHandler
+import settings.imageGenHandler as imageGenHandler
 
 # Define conversation states
 SELECTING_CHAT, CREATE_NEW_CHAT, CHATTING, RETURN_TO_MENU = range(4)
@@ -98,7 +99,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     print(f"{user_id}: {user_message}") # DEBUG_USE
     # Get current settings
-    _, provider, model, temperature, max_tokens, n, start_prompt = settingHandler.get_current_settings(user_id)
+    _, provider, model, temperature, max_tokens, n, start_prompt = chatCompletionHandler.get_current_settings(user_id)
     chat_id = context.user_data.get('current_chat_id')
     if chat_id is None:
         chat_id, chat_title = await handle_save_new_chat(user_message, user_id)
@@ -188,8 +189,11 @@ async def handle_gen_image(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             (chat_id, stored_message, 'user'))
     conn_chats.commit()
 
+    # Retrieve image gen settings from database
+    _, model, size = imageGenHandler.get_image_settings(update.effective_user.id)
+
     # Call dalle API
-    img_base64 = await gpt.image_gen_with_openai(prompt=prompt, model='dall-e-2',n=1, size="256x256")
+    img_base64 = await gpt.image_gen_with_openai(prompt=prompt, model=model,n=1, size=size)
 
     if img_base64:
         # Save AI response to database in base64 format
@@ -248,7 +252,7 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return CHATTING
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    _, provider, model, temperature, max_tokens, n, start_prompt = settingHandler.get_current_settings(update.effective_user.id)
+    _, provider, model, temperature, max_tokens, n, start_prompt = chatCompletionHandler.get_current_settings(update.effective_user.id)
     # Check the model being used, if it is not a vision model as listed tell user to change the model choice
     if model not in miscHandler.VISION_MODELS:
         message =await update.message.reply_text(f"Please select a model from the list: {', '.join(miscHandler.VISION_MODELS)}")
@@ -278,7 +282,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_id = update.effective_user.id
             print(f"{user_id}: {user_message}") # DEBUG_USE
             # Get current settings
-            _, provider, model, temperature, max_tokens, n, start_prompt = settingHandler.get_current_settings(user_id)
+            _, provider, model, temperature, max_tokens, n, start_prompt = chatCompletionHandler.get_current_settings(user_id)
             chat_id = context.user_data.get('current_chat_id')
             if chat_id is None:
                 chat_id, chat_title = await handle_save_new_chat(user_message, user_id)
