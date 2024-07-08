@@ -7,6 +7,10 @@ from io import BytesIO
 from PIL import Image
 from openai import OpenAI
 from helpers.dateHelper import get_current_date, get_current_weekday
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv(override=True)
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO)

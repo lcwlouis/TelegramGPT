@@ -160,11 +160,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             (total_input_tokens, total_output_tokens, chat_id))
     conn_chats.commit()
 
-    reply = f"""
-                <u><b>Universalis</b></u>: \n{message} 
-Input: <code>{input_tokens}</code> tokens | Output: <code>{output_tokens}</code> tokens
-Total input used: <code>{total_input_tokens}</code> tokens | Total output used: <code>{total_output_tokens}</code> tokens
-            """
+    reply = (
+        f"<u><b>Universalis</b></u>: \n{message}\n\n"
+        f"Input: <code>{input_tokens}</code> tokens | Output: <code>{output_tokens}</code> tokens\n"
+        f"Total input used: <code>{total_input_tokens}</code> tokens | Total output used: <code>{total_output_tokens}</code> tokens\n"
+    )
+    
     
     try:
         await bot_message.edit_text(reply, parse_mode=ParseMode.HTML)
@@ -342,7 +343,11 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             c.execute('UPDATE chats SET input_tokens = ?, output_tokens = ? WHERE id = ?', (total_input_tokens, total_output_tokens, chat_id))
             conn_chats.commit()
 
-            reply = f"<b>Universalis</b>: \n{message} \n\nInput: {input_tokens} tokens | Output: {output_tokens} tokens \nTotal input used: {total_input_tokens} tokens | Total output used: {total_output_tokens} tokens"
+            reply = (
+                f"<b>Universalis</b>: \n{message} \n\n"
+                f"Input: {input_tokens} tokens | Output: {output_tokens} tokens \n"
+                f"Total input used: {total_input_tokens} tokens | Total output used: {total_output_tokens} tokens\n"
+            )
             
             try:
                 await bot_message.edit_text(reply, parse_mode=ParseMode.HTML)

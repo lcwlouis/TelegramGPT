@@ -69,7 +69,8 @@ async def show_chats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def create_new_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.callback_query.answer()
     await update.callback_query.edit_message_text(
-        text="<u>How can Universalis help you today?</u> /start to go back to the main menu.",
+        text=
+            "<u>How can Universalis help you today?</u> \n\n",
         parse_mode=ParseMode.HTML
     )
     return CREATE_NEW_CHAT
