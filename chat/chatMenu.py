@@ -86,7 +86,7 @@ async def open_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['current_chat_title'] = chat_title
     
     await query.answer()
-    await query.edit_message_text(f"You are now chatting in: {chat_title}!")
+    await query.edit_message_text(f"You are now chatting in: {chat_title}! You can save and exit using /end or /delete to delete the chat.")
     
     # Print the chat history if there is any
     c.execute("SELECT type, message, role FROM chat_history WHERE chat_id = ?", (chat_id,))

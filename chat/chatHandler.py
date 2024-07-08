@@ -105,7 +105,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat_id, chat_title = await handle_save_new_chat(user_message, user_id)
         context.user_data['current_chat_id'] = chat_id
         context.user_data['current_chat_title'] = chat_title
-        message = await update.message.reply_text(f"You are now chatting in: {chat_title}!")
+        message = await update.message.reply_text(f"You are now chatting in: {chat_title}! You can save and exit using /end or /delete to delete the chat.")
         context.user_data.setdefault('sent_messages', []).append(message.message_id)
     else:
         pass
@@ -121,61 +121,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     c.execute("SELECT type, message, role FROM chat_history WHERE chat_id = ? ORDER BY rowid", (chat_id,))
     chat_history = c.fetchall()
 
-    # Generate AI response
-    if provider == 'openai':
-        messages = gpt.build_message_list_gpt(chat_history)
-        bot_message = await update.message.reply_text("Working hard...")
-        context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
-        input_tokens, output_tokens, role, message = await gpt.chat_with_gpt(messages, model=model, temperature=temperature, max_tokens=max_tokens, n=n)
-    elif provider == 'claude':
-        messages = claude.build_message_list_claude(chat_history)
-        bot_message = await update.message.reply_text("Working hard...")
-        context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
-        input_tokens, output_tokens, role, message = await claude.chat_with_claude(messages, model=model, temperature=temperature, max_tokens=max_tokens, system=start_prompt)
-    elif provider == 'google':
-        chat_history = gemini.build_message_list_gemini(chat_history)
-        bot_message = await update.message.reply_text("Working hard...")
-        context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
-        input_tokens, output_tokens, role, message = await gemini.chat_with_gemini(user_message, model=model, temperature=temperature, max_tokens=max_tokens, message_history=chat_history, system=start_prompt)
-    elif provider == 'ollama':
-        chat_history = ollama.build_message_list_ollama(chat_history)
-        bot_message = await update.message.reply_text("Working hard...")
-        context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
-        input_tokens, output_tokens, role, message = await ollama.chat_with_ollama(chat_history, model=model, temperature=temperature, max_tokens=max_tokens)
-        if input_tokens == -1 and output_tokens == -1:
-            await bot_message.edit_text("<u><b>Universalis</b></u>: \nSorry Ollama is currently unavailable. \nPlease /end and change model in settings.")
-            return CHATTING
-
-    # Save AI response to database
-    c.execute("INSERT INTO chat_history (chat_id, message, role) VALUES (?, ?, ?)", 
-            (chat_id, message, role))
-    conn_chats.commit()
-    
-    # Get current token counts from database
-    c.execute('SELECT input_tokens, output_tokens FROM chats WHERE id = ?', (chat_id,))
-    row = c.fetchone()
-    total_input_tokens, total_output_tokens = row
-
-    # Update token counts in database
-    total_input_tokens += input_tokens
-    total_output_tokens += output_tokens
-    c.execute('UPDATE chats SET input_tokens = ?, output_tokens = ? WHERE id = ?', 
-            (total_input_tokens, total_output_tokens, chat_id))
-    conn_chats.commit()
-
-    reply = (
-        f"<u><b>Universalis</b></u>: \n{message}\n\n"
-        f"Input: <code>{input_tokens}</code> tokens | Output: <code>{output_tokens}</code> tokens\n"
-        f"Total input used: <code>{total_input_tokens}</code> tokens | Total output used: <code>{total_output_tokens}</code> tokens\n"
-    )
-    
-    
-    try:
-        await bot_message.edit_text(reply, parse_mode=ParseMode.HTML)
-    except Exception as e:
-        message = await bot_message.reply_text(f"Message unable to format properly: {message}")
-        context.user_data.setdefault('sent_messages', []).append(message.message_id)
-    return CHATTING
+    # Generate AI response chat completion
+    return await handle_chat_completion(provider, model, temperature, max_tokens, n, start_prompt, chat_history, user_message, chat_id, update, context)
 
 async def handle_gen_image(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     chat_id = context.user_data.get('current_chat_id')
@@ -275,11 +222,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Save photo info to chat history
     if image_in_base64 is not None:
-        chat_id = context.user_data.get('current_chat_id')
-        check_if_chat_history_exists(chat_id, start_prompt)
-        c.execute("INSERT INTO chat_history (chat_id, type, message, role) VALUES (?, ?, ?, ?)", 
-                (chat_id, "image_url", image_in_base64, 'user'))
-        conn_chats.commit()
         print(f"User uploaded caption with image: {update.message.caption}")
         if update.message.caption is not None:
             user_message = update.message.caption
@@ -298,6 +240,12 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
             # Check if chat history is empty for the current chat
             check_if_chat_history_exists(chat_id, start_prompt)
+
+            # chat_id = context.user_data.get('current_chat_id')
+            # check_if_chat_history_exists(chat_id, start_prompt)
+            c.execute("INSERT INTO chat_history (chat_id, type, message, role) VALUES (?, ?, ?, ?)", 
+                    (chat_id, "image_url", image_in_base64, 'user'))
+            conn_chats.commit()
             
             # Save user message to database
             c.execute("INSERT INTO chat_history (chat_id, message, role) VALUES (?, ?, ?)", 
@@ -309,58 +257,12 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             chat_history = c.fetchall()
 
             # Generate AI response
-            if provider == 'openai':
-                messages = gpt.build_message_list_gpt(chat_history)
-                bot_message = await update.message.reply_text("Working hard...")
-                context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
-                input_tokens, output_tokens, role, message = await gpt.chat_with_gpt(messages, model=model, temperature=temperature, max_tokens=max_tokens, n=n)
-            elif provider == 'claude':
-                messages = claude.build_message_list_claude(chat_history)
-                bot_message = await update.message.reply_text("Working hard...")
-                context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
-                input_tokens, output_tokens, role, message = await claude.chat_with_claude(messages, model=model, temperature=temperature, max_tokens=max_tokens, system=start_prompt)
-            elif provider == 'google':
-                chat_history = gemini.build_message_list_gemini(chat_history)
-                bot_message = await update.message.reply_text("Working hard...")
-                context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
-                input_tokens, output_tokens, role, message = await gemini.chat_with_gemini(user_message, model=model, temperature=temperature, max_tokens=max_tokens, message_history=chat_history, system=start_prompt)
-            elif provider == 'ollama':
-                chat_history = ollama.build_message_list_ollama(chat_history)
-                bot_message = await update.message.reply_text("Working hard...")
-                context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
-                input_tokens, output_tokens, role, message = await ollama.chat_with_ollama(chat_history, model=model, temperature=temperature, max_tokens=max_tokens)
-                if input_tokens == -1 and output_tokens == -1:
-                    await bot_message.edit_text("<u><b>Universalis</b></u>: \nSorry Ollama is currently unavailable. \nPlease /end and change model in settings.")
-                    return CHATTING
-
-            # Save AI response to database
-            c.execute("INSERT INTO chat_history (chat_id, message, role) VALUES (?, ?, ?)", 
-                    (chat_id, message, role))
-            conn_chats.commit()
-            
-            # Get current token counts from database
-            c.execute('SELECT input_tokens, output_tokens FROM chats WHERE id = ?', (chat_id,))
-            row = c.fetchone()
-            total_input_tokens, total_output_tokens = row
-
-            # Update token counts in database
-            total_input_tokens += input_tokens
-            total_output_tokens += output_tokens
-            c.execute('UPDATE chats SET input_tokens = ?, output_tokens = ? WHERE id = ?', (total_input_tokens, total_output_tokens, chat_id))
-            conn_chats.commit()
-
-            reply = (
-                f"<b>Universalis</b>: \n{message} \n\n"
-                f"Input: {input_tokens} tokens | Output: {output_tokens} tokens \n"
-                f"Total input used: {total_input_tokens} tokens | Total output used: {total_output_tokens} tokens\n"
-            )
-            
-            try:
-                await bot_message.edit_text(reply, parse_mode=ParseMode.HTML)
-            except Exception as e:
-                message = await bot_message.reply_text(f"Message unable to format properly: {message}")
-                context.user_data.setdefault('sent_messages', []).append(message.message_id)
-            return CHATTING
+            return await handle_chat_completion(provider, model, temperature, max_tokens, n, start_prompt, chat_history, user_message, chat_id, update, context)
+        chat_id = context.user_data.get('current_chat_id')
+        check_if_chat_history_exists(chat_id, start_prompt)
+        c.execute("INSERT INTO chat_history (chat_id, type, message, role) VALUES (?, ?, ?, ?)", 
+                (chat_id, "image_url", image_in_base64, 'user'))
+        conn_chats.commit()
         message = await update.message.reply_text("Photo received. Continue typing your message.")
         context.user_data.setdefault('sent_messages', []).append(message.message_id)
         return CHATTING
@@ -371,6 +273,61 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return CHATTING
     
     # os.remove(file_path)  # Clean up the downloaded file
+    return CHATTING
+
+async def handle_chat_completion(provider, model, temperature, max_tokens, n, start_prompt, chat_history, user_message, chat_id, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if provider == 'openai':
+        messages = gpt.build_message_list_gpt(chat_history)
+        bot_message = await update.message.reply_text("Working hard...")
+        context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
+        input_tokens, output_tokens, role, message = await gpt.chat_with_gpt(messages, model=model, temperature=temperature, max_tokens=max_tokens, n=n)
+    elif provider == 'claude':
+        messages = claude.build_message_list_claude(chat_history)
+        bot_message = await update.message.reply_text("Working hard...")
+        context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
+        input_tokens, output_tokens, role, message = await claude.chat_with_claude(messages, model=model, temperature=temperature, max_tokens=max_tokens, system=start_prompt)
+    elif provider == 'google':
+        chat_history = gemini.build_message_list_gemini(chat_history)
+        bot_message = await update.message.reply_text("Working hard...")
+        context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
+        input_tokens, output_tokens, role, message = await gemini.chat_with_gemini(user_message, model=model, temperature=temperature, max_tokens=max_tokens, message_history=chat_history, system=start_prompt)
+    elif provider == 'ollama':
+        chat_history = ollama.build_message_list_ollama(chat_history)
+        bot_message = await update.message.reply_text("Working hard...")
+        context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
+        input_tokens, output_tokens, role, message = await ollama.chat_with_ollama(chat_history, model=model, temperature=temperature, max_tokens=max_tokens)
+        if input_tokens == -1 and output_tokens == -1:
+            await bot_message.edit_text("<u><b>Universalis</b></u>: \nSorry Ollama is currently unavailable. \nPlease /end and change model in settings.")
+            return CHATTING
+
+    # Save AI response to database
+    c.execute("INSERT INTO chat_history (chat_id, message, role) VALUES (?, ?, ?)", 
+            (chat_id, message, role))
+    conn_chats.commit()
+    
+    # Get current token counts from database
+    c.execute('SELECT input_tokens, output_tokens FROM chats WHERE id = ?', (chat_id,))
+    row = c.fetchone()
+    total_input_tokens, total_output_tokens = row
+
+    # Update token counts in database
+    total_input_tokens += input_tokens
+    total_output_tokens += output_tokens
+    c.execute('UPDATE chats SET input_tokens = ?, output_tokens = ? WHERE id = ?', 
+            (total_input_tokens, total_output_tokens, chat_id))
+    conn_chats.commit()
+
+    reply = (
+        f"<u><b>Universalis</b></u>: \n{message}\n\n"
+        f"Input: <code>{input_tokens}</code> tokens | Output: <code>{output_tokens}</code> tokens\n"
+        f"Total input used: <code>{total_input_tokens}</code> tokens | Total output used: <code>{total_output_tokens}</code> tokens\n"
+    )
+    
+    try:
+        await bot_message.edit_text(reply, parse_mode=ParseMode.HTML)
+    except Exception as e:
+        message = await bot_message.reply_text(f"Message unable to format properly: {message}")
+        context.user_data.setdefault('sent_messages', []).append(message.message_id)
     return CHATTING
 
 def get_chat_handlers():
