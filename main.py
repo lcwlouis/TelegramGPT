@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import (
-    ApplicationHandlerStop,
     ApplicationBuilder,
     ContextTypes,
     CommandHandler,
@@ -15,22 +14,30 @@ from telegram.ext import (
     ConversationHandler,
     PicklePersistence
 )
-from settingsMenu import (
+from settings.chatCompletionHandler import (
     settings, 
     settings_menu_handler,
     kill_connection as settings_kill_connection
     )
-from chattingMenu import (
+from settings.imageGenHandler import (
+    kill_connection as imageGen_kill_connection
+)
+from chat.chatMenu import (
     start,
     show_chats,
     show_help,
-    get_chat_handlers,
-    kill_connection as chat_kill_connection
+    kill_connection as chatMenu_kill_connection
 )
-from user import (
-    add_user,
-    get_all_user_ids,
+from chat.chatHandler import (
+    get_chat_handlers,
+    kill_connection as chatHandler_kill_connection
+)
+from helpers.userHelper import (
     kill_connection as user_kill_connection
+)
+from helpers.mainHelper import (
+    callback,
+    admin_add_user
 )
 
 logging.basicConfig(
@@ -46,17 +53,9 @@ load_dotenv()
 
 # Telegram bot token
 TOKEN: Final = os.getenv(f'TELEGRAM_BOT_TOKEN_{os.getenv("ENVIRONMENT")}')
-# BOT_USERNAME: Final = os.getenv('TELEGRAM_BOT_USERNAME') # Not used
-
-# Load whitelisted telegram ids
-admin_telegram_id = int(os.getenv('TELEGRAM_ADMIN_ID'))
-whitelisted_telegram_id = get_all_user_ids()
 
 # Load error chat id
 ERROR_CHAT_ID = int(os.getenv('TELEGRAM_ERROR_CHAT_ID'))
-
-# Define shared states
-SELECTING_CHAT, CREATE_NEW_CHAT, CHATTING, RETURN_TO_MENU = range(4)
 
 # load directory
 DB_DIR = os.getenv('DB_DIR')
@@ -64,60 +63,6 @@ PICKLE_DIR = 'user_data.pickle'
 PICKLE_PATH = os.path.join(DB_DIR, PICKLE_DIR)
 
 os.makedirs(DB_DIR, exist_ok=True)
-
-
-async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """
-    Asynchronous function that checks if the user ID is whitelisted on Telegram. If not, it replies with a message indicating the user is not allowed to use the bot and raises an ApplicationHandlerStop exception.
-
-    Parameters:
-    - update: Update object containing information about the user update
-    - context: ContextTypes.DEFAULT_TYPE object providing the context for the update
-
-    Returns:
-    - None
-    """
-    if update.effective_user.id in whitelisted_telegram_id:
-        pass
-    else:
-        message = await update.effective_message.reply_text(f"Hey! You are not allowed to use me! Ask the admin to add your user id: <code>{update.effective_user.id}</code>", parse_mode=ParseMode.HTML)
-        context.user_data.setdefault('sent_messages', []).append(message.message_id)
-        raise ApplicationHandlerStop
-
-async def cleanup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # Delete all messages before the next message
-    if 'sent_messages' in context.user_data:
-        min_id = min(context.user_data['sent_messages'])
-        max_id = max(context.user_data['sent_messages']) + 1
-        for message_id in range(min_id, max_id):
-            try:
-                await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=message_id)
-            except Exception as e:
-                logger.warning(f"Failed to delete message {message_id}: {e}")
-        context.user_data['sent_messages'] = []
-
-async def exit_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await cleanup(update, context)
-    # Clear all user data
-    context.user_data.clear()
-    # Send a new message telling the user to /start
-    message = await context.bot.send_message(chat_id=update.effective_chat.id, text="Type /start to start again")
-    # print(f"Sent message: {message.message_id}")
-    context.user_data.setdefault('sent_messages', []).append(message.message_id)
-    return ConversationHandler.END
-
-async def admin_add_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.effective_user.id == admin_telegram_id:
-        user_id = update.message.text.split(" ")[1].strip()
-        print(f"User id: {user_id}")
-        if user_id.isdigit() and int(user_id) not in whitelisted_telegram_id and not None:
-            add_user(user_id)
-            whitelisted_telegram_id.append(int(user_id))
-            message = await update.effective_message.reply_text(f"User id <code>{user_id}</code> added successfully", parse_mode=ParseMode.HTML)
-            context.user_data.setdefault('sent_messages', []).append(message.message_id)
-    else:
-        message = await update.effective_message.reply_text("You are not allowed to use me!", parse_mode=ParseMode.HTML)
-        context.user_data.setdefault('sent_messages', []).append(message.message_id)
 
 # Error handler taken from python telegram bot examples
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -188,8 +133,10 @@ def main() -> None:
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
     # On Ctrl+C exit
-    chat_kill_connection()
+    chatHandler_kill_connection()
+    chatMenu_kill_connection()
     settings_kill_connection()
+    imageGen_kill_connection()
     user_kill_connection()
     print("Bot polling closed. Exiting...")
 

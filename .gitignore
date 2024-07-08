@@ -1,7 +1,6 @@
 .env
 __pycache__/
-old_sys_prompts
+_old_sys_prompts
 .DS_Store
-system_prompt.txt
-title_system_prompt.txt
-db_data
+prompts
+data

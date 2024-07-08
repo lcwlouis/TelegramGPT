@@ -1,8 +1,19 @@
 import sqlite3
+import logging
 import os
 from dotenv import load_dotenv
 
-DEFAULT_STARTING_MESSAGE = open('./system_prompt.txt', 'r').read()
+# Initialize logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+PROMPT_DIR = os.getenv('PROMPT_DIR')
+PROMPT_FILE = 'system_prompt.txt'
+PROMPT_PATH = os.path.join(PROMPT_DIR, PROMPT_FILE)
+
+os.makedirs(PROMPT_DIR, exist_ok=True)
+
+DEFAULT_STARTING_MESSAGE = open(PROMPT_PATH, 'r').read()
 
 load_dotenv()
 
