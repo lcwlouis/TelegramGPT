@@ -37,6 +37,10 @@ def build_message_list_ollama(chat_history) -> list:
     return messages
 
 async def chat_with_ollama(messages, model, temperature=0.5, max_tokens=100) -> str:
+    # Check if Ollama is available
+    if check_server_status() == False:
+        return -1, -1, "assistant", "Ollama is not available. Please try again later."
+    
     jsonData = {
             "model": model,
             "messages": messages,
@@ -56,6 +60,10 @@ async def chat_with_ollama(messages, model, temperature=0.5, max_tokens=100) -> 
                 return 0, 0, "assistant", f"An error occurred while interacting with Ollama. Please try again later. Error code: {response.status_code}"
 
 def get_available_ollama_models() -> list:
+    # Check if Ollama is available
+    if check_server_status() == False:
+        return []
+
     # Get this via POST request
     available_models = []
     res = requests.get(f'{OLLAMA_URL}/api/tags')
@@ -75,3 +83,10 @@ def process_response_from_ollama(response) -> tuple:
     message = re.sub(r'<(a|article|p|br|li|sup|sub|abbr|small|ul|/a|/article|/p|/li|/sup|/sub|/abbr|/small|/ul)>', '', message)
     message = message.replace('<h1>', '<b><u>').replace('</h1>', '</u></b>').replace('<h2>', '<b>').replace('</h2>', '</b>').replace('<h3>', '<u>').replace('</h3>', '</u>').replace('<h4>', '<i>').replace('</h4>', '</i>').replace('<h5>', '').replace('</h5>', '').replace('<h6>', '').replace('</h6>', '').replace('<big>', '<b>').replace('</big>', '</b>')
     return input_tokens, output_tokens, role, message
+
+def check_server_status() -> bool:
+    res = requests.get(f'{OLLAMA_URL}/api')
+    if res.status_code == 200:
+        return True
+    else:
+        return False

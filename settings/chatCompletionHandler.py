@@ -184,6 +184,12 @@ async def provider_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if query.data == "back_to_settings":
         await settingMenu.show_current_settings(update, context)
         return SELECTING_OPTION
+    elif query.data == "ollama":
+        from providers.ollamaHandler import check_server_status
+        if not check_server_status():
+            message = await query.message.reply_text("Ollama is currently unavailable. Please try again later.")
+            context.user_data.setdefault('sent_messages', []).append(message.message_id)
+            return SELECTING_PROVIDER
     
     selected_provider = query.data
     context.user_data['settings'][0] = selected_provider
@@ -381,6 +387,17 @@ def get_current_settings(user_id) -> tuple:
         c.execute('SELECT * FROM user_preferences WHERE user_id = ?', (user_id,))
         row = c.fetchone()
     return row
+
+def reset_user_settings(user_id) -> bool:
+    try:
+        c.execute('DELETE FROM user_preferences WHERE user_id = ?', (user_id,))
+        conn_settinngs.commit()
+        c.execute('INSERT INTO user_preferences (user_id, start_prompt) VALUES (?, ?)', (user_id, DEFAULT_STARTING_MESSAGE))
+        conn_settinngs.commit()
+        return True
+    except Exception as e:
+        print(f"Error resetting user settings: {e}")
+        return False
 
 def kill_connection() -> None:
     conn_settinngs.close()

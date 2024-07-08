@@ -142,6 +142,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         bot_message = await update.message.reply_text("Working hard...")
         context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
         input_tokens, output_tokens, role, message = await ollama.chat_with_ollama(chat_history, model=model, temperature=temperature, max_tokens=max_tokens)
+        if input_tokens == -1 and output_tokens == -1:
+            await bot_message.edit_text("<u><b>Universalis</b></u>: \nSorry Ollama is currently unavailable. \nPlease /end and change model in settings.")
+            return CHATTING
 
     # Save AI response to database
     c.execute("INSERT INTO chat_history (chat_id, message, role) VALUES (?, ?, ?)", 
@@ -326,6 +329,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 bot_message = await update.message.reply_text("Working hard...")
                 context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
                 input_tokens, output_tokens, role, message = await ollama.chat_with_ollama(chat_history, model=model, temperature=temperature, max_tokens=max_tokens)
+                if input_tokens == -1 and output_tokens == -1:
+                    await bot_message.edit_text("<u><b>Universalis</b></u>: \nSorry Ollama is currently unavailable. \nPlease /end and change model in settings.")
+                    return CHATTING
 
             # Save AI response to database
             c.execute("INSERT INTO chat_history (chat_id, message, role) VALUES (?, ?, ?)", 
