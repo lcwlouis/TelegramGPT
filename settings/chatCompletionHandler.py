@@ -68,13 +68,27 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if update.message is None:
         query = update.callback_query
         await query.message.edit_text(
-            f"<b><u>Current settings:</u></b>\n<b>Provider: </b>{provider}\n<b>Model:</b> {model}\n<b>Temperature:</b> {temperature}\n<b>Max tokens:</b> {max_tokens}\n<b>N:</b> {n}\n<b>Starting Prompt:</b> <blockquote>{start_prompt}</blockquote>",
+            f"<b><u>Current settings:</u></b>\n"
+            f"<b>Provider: </b>{provider}\n"
+            f"<b>Model:</b> {model}\n"
+            f"<b>Temperature:</b> {temperature}\n"
+            f"<b>Max tokens:</b> {max_tokens}\n"
+            f"<b>N:</b> {n}\n"
+            f"<b>Starting Prompt:</b> <blockquote> Select Starting Prompt to see the prompt </blockquote>\n"
+            f"<b>Image Settings:</b> <blockquote> Select Image Settings to see the image settings</blockquote>",
             reply_markup=settingMenu.settings_keyboard(),
             parse_mode=ParseMode.HTML
         )
         return SELECTING_OPTION
     message = await update.message.reply_text(
-        f"<b><u>Current settings:</u></b>\n<b>Provider: </b>{provider}\n<b>Model:</b> {model}\n<b>Temperature:</b> {temperature}\n<b>Max tokens:</b> {max_tokens}\n<b>N:</b> {n}\n<b>Starting Prompt:</b> <blockquote>{start_prompt}</blockquote>",
+        f"<b><u>Current settings:</u></b>\n"
+        f"<b>Provider: </b>{provider}\n"
+        f"<b>Model:</b> {model}\n"
+        f"<b>Temperature:</b> {temperature}\n"
+        f"<b>Max tokens:</b> {max_tokens}\n"
+        f"<b>N:</b> {n}\n"
+        f"<b>Starting Prompt:</b> <blockquote> Select Starting Prompt to see the prompt </blockquote>\n"
+        f"<b>Image Settings:</b> <blockquote> Select Image Settings to see the image settings</blockquote>",
         reply_markup=settingMenu.settings_keyboard(),
         parse_mode=ParseMode.HTML
     )
@@ -91,26 +105,55 @@ async def option_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await start(update, context)
         return ConversationHandler.END
     elif option == "model":
-        await query.edit_message_text(f"<b><u>Current GenAI Provider</u>: </b>{str(context.user_data['settings'][0])} \n<b><u>Current Model</u>: </b>{str(context.user_data['settings'][1])} \n\nSelect a provider:", reply_markup=settingMenu.provider_keyboard(), parse_mode=ParseMode.HTML)
+        await query.edit_message_text(
+            f"<b><u>Current GenAI Provider</u>: </b>{str(context.user_data['settings'][0])} \n"
+            f"<b><u>Current Model</u>: </b>{str(context.user_data['settings'][1])} \n\n"
+            f"Select a provider:", 
+            reply_markup=settingMenu.provider_keyboard(), 
+            parse_mode=ParseMode.HTML)
         return SELECTING_PROVIDER
     elif option == "temperature":
-        await query.edit_message_text(f"<b><u>Current Temperature</u>: </b>{str(context.user_data['settings'][2])} \n\nEnter a new temperature value (0.0 to 1.0):", reply_markup=settingMenu.back_keyboard(), parse_mode=ParseMode.HTML)
+        await query.edit_message_text(
+            f"<b><u>Current Temperature</u>: </b>{str(context.user_data['settings'][2])} \n\n"
+            f"Enter a new temperature value (0.0 to 1.0):", 
+            reply_markup=settingMenu.back_keyboard(), 
+            parse_mode=ParseMode.HTML
+            )
         return ENTERING_TEMPERATURE
     elif option == "max_tokens":
-        await query.edit_message_text(f"<b><u>Current Max Tokens</u>: </b>{str(context.user_data['settings'][3])} \n\nEnter a new max tokens value (1 to 4096):", reply_markup=settingMenu.back_keyboard(), parse_mode=ParseMode.HTML)
+        await query.edit_message_text(
+            f"<b><u>Current Max Tokens</u>: </b>{str(context.user_data['settings'][3])} \n\n"
+            f"Enter a new max tokens value (1 to 4096):", 
+            reply_markup=settingMenu.back_keyboard(), 
+            parse_mode=ParseMode.HTML
+            )
         return ENTERING_MAX_TOKENS
     elif option == "n":
-        await query.edit_message_text(f"<b><u>Current n value</u>: </b>{str(context.user_data['settings'][4])} \n\nEnter a new N value (0.0 to 1.0):", reply_markup=settingMenu.back_keyboard(), parse_mode=ParseMode.HTML)
+        await query.edit_message_text(
+            f"<b><u>Current n value</u>: </b>{str(context.user_data['settings'][4])} \n\n"
+            f"Enter a new N value (0.0 to 1.0):", 
+            reply_markup=settingMenu.back_keyboard(), 
+            parse_mode=ParseMode.HTML
+            )
         return ENTERING_N
     elif option == "start_prompt":
-        await query.edit_message_text(f"<b><u>Current Starting Prompt</u>: </b> <code>{str(context.user_data['settings'][5])}</code> \n\nEnter a new starting prompt:", reply_markup=settingMenu.back_keyboard(), parse_mode=ParseMode.HTML)
+        await query.edit_message_text(
+            f"[HTML Mode disabled to let you see the full prompt]\n"
+            f"Current Starting Prompt: \n\n"
+            f"{str(context.user_data['settings'][5])} \n\n"
+            f"Enter a new starting prompt:", 
+            reply_markup=settingMenu.back_keyboard()
+            )
         return ENTERING_START_PROMPT
     elif option == "image_settings":
         from settings.imageGenHandler import image_settings
         await image_settings(update, context)
         return SELECTING_IMAGE_SETTINGS
     elif option == "reset_to_default":
-        await query.edit_message_text("Resetting to default settings...", parse_mode=ParseMode.HTML)
+        await query.edit_message_text(
+            "Resetting to default settings...", 
+            parse_mode=ParseMode.HTML
+            )
         await reset_selected(update, context)
         return SELECTING_OPTION
 
@@ -151,7 +194,13 @@ async def provider_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     conn_settinngs.commit()
     
     # move to model selection
-    await query.edit_message_text(f"<b><u>Current Provider</u>: </b>{context.user_data['settings'][0]} \n<b><u>Current Model</u>: </b>{context.user_data['settings'][1]} \nSelect a model:", reply_markup=settingMenu.provider_model_keyboard_switch(context.user_data['settings'][0]), parse_mode=ParseMode.HTML)
+    await query.edit_message_text(
+        f"<b><u>Current Provider</u>: </b>{context.user_data['settings'][0]} \n"
+        f"<b><u>Current Model</u>: </b>{context.user_data['settings'][1]} \n"
+        f"Select a model:", 
+        reply_markup=settingMenu.provider_model_keyboard_switch(context.user_data['settings'][0]), 
+        parse_mode=ParseMode.HTML
+        )
     return SELECTING_MODEL
 
 async def temperature_entered(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:

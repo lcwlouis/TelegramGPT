@@ -35,7 +35,8 @@ async def show_current_settings(update: Update, context: ContextTypes.DEFAULT_TY
         f"<b>Temperature:</b> {settings[2]}\n"
         f"<b>Max tokens:</b> {settings[3]}\n"
         f"<b>N:</b> {settings[4]}\n"
-        f"<b>Starting Prompt:</b> <blockquote>{settings[5]}</blockquote>"
+        f"<b>Starting Prompt:</b> <blockquote> Select Starting Prompt to see the prompt </blockquote>\n"
+        f"<b>Image Settings:</b> <blockquote> Select Image Settings to see the image settings</blockquote>\n"
     )
     
     if update.callback_query:
