@@ -149,6 +149,18 @@ def get_image_settings(user_id):
         result = c.fetchone()
     return result
 
+def reset_user_image_settings(user_id) -> bool:
+    try:
+        c.execute('DELETE FROM image_gen_user_preferences WHERE user_id = ?', (user_id,))
+        conn_settinngs.commit()
+        c.execute('INSERT INTO image_gen_user_preferences (user_id) VALUES (?)', (user_id,))
+        conn_settinngs.commit()
+        return True
+    except Exception as e:
+        print(f"Error resetting image gen settings: {e}")
+        return False
+
+
 def kill_connection() -> None:
     conn_settinngs.close()
     print("Image Gen Settings DB Connection Closed")

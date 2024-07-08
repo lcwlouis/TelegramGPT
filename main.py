@@ -37,7 +37,8 @@ from helpers.userHelper import (
 )
 from helpers.mainHelper import (
     callback,
-    admin_add_user
+    admin_add_user,
+    admin_reset_user_settings
 )
 
 logging.basicConfig(
@@ -117,6 +118,8 @@ def main() -> None:
     
     # Handle adding users by admin
     admin_add_cmd_handler = CommandHandler("admin_add", admin_add_user)
+    admin_reset_cmd_handler = CommandHandler("admin_reset", admin_reset_user_settings)
+
 
     # Add handlers
 
@@ -124,6 +127,7 @@ def main() -> None:
     application.add_handler(chat_menu_handler)
     application.add_handler(settings_handler)
     application.add_handler(admin_add_cmd_handler)
+    application.add_handler(admin_reset_cmd_handler)
 
     # Add error handler
     application.add_error_handler(error_handler)

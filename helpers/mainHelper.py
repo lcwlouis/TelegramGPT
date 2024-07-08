@@ -9,6 +9,8 @@ from helpers.userHelper import (
     get_all_user_ids,
 )
 
+from settings.chatCompletionHandler import reset_user_settings
+from settings.imageGenHandler import reset_user_image_settings
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -23,6 +25,11 @@ SELECTING_CHAT, CREATE_NEW_CHAT, CHATTING, RETURN_TO_MENU = range(4)
 ## Main Helper Functions
 
 async def admin_add_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # Ensure that there is a user ID in the message
+    if len(update.message.text.split(" ")) < 2:
+        message = await update.effective_message.reply_text("Please provide a user ID", parse_mode=ParseMode.HTML)
+        context.user_data.setdefault('sent_messages', []).append(message.message_id)
+        return
     if update.effective_user.id == admin_telegram_id:
         user_id = update.message.text.split(" ")[1].strip()
         print(f"User id: {user_id}")
@@ -31,6 +38,29 @@ async def admin_add_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             whitelisted_telegram_id.append(int(user_id))
             message = await update.effective_message.reply_text(f"User id <code>{user_id}</code> added successfully", parse_mode=ParseMode.HTML)
             context.user_data.setdefault('sent_messages', []).append(message.message_id)
+    else:
+        message = await update.effective_message.reply_text("You are not allowed to use me!", parse_mode=ParseMode.HTML)
+        context.user_data.setdefault('sent_messages', []).append(message.message_id)
+
+async def admin_reset_user_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # Ensure that there is a user ID in the message
+    if len(update.message.text.split(" ")) < 2:
+        message = await update.effective_message.reply_text("Please provide a user ID", parse_mode=ParseMode.HTML)
+        context.user_data.setdefault('sent_messages', []).append(message.message_id)
+        return
+    if update.effective_user.id == admin_telegram_id:
+        user_id = update.message.text.split(" ")[1].strip()
+        print(f"User id: {user_id}")
+        if user_id.isdigit() and int(user_id) in whitelisted_telegram_id:
+            success_reset_settings = reset_user_settings(user_id)
+            success_reset_image_settings = reset_user_image_settings(user_id)
+            if success_reset_settings and success_reset_image_settings:
+                message = await update.effective_message.reply_text(f"User id <code>{user_id}</code> settings reset successfully", parse_mode=ParseMode.HTML)
+                context.user_data.setdefault('sent_messages', []).append(message.message_id)
+            else:
+                message = await update.effective_message.reply_text(f"User id <code>{user_id}</code> settings reset failed", parse_mode=ParseMode.HTML)
+                context.user_data.setdefault('sent_messages', []).append(message.message_id)
+
     else:
         message = await update.effective_message.reply_text("You are not allowed to use me!", parse_mode=ParseMode.HTML)
         context.user_data.setdefault('sent_messages', []).append(message.message_id)
