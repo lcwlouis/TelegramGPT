@@ -69,9 +69,7 @@ async def chat_with_gemini(input_message, model='gemini-1.5-flash', temperature=
 def get_available_gemini_models() -> list:
     # REST API version
     response = requests.get(f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}")
-    print(response)
     available_models = []
-    print(response.json())
     for model in response.json()['models']:
         available_models.append(model['name'].split('/')[-1])
     available_models = sorted([model for model in available_models if 'gemini' and '1.5' in model])
@@ -80,7 +78,6 @@ def get_available_gemini_models() -> list:
     #     print(model)
     # # Filter for only those containing gemini and sorted
     # # available_models = sorted([model for model in available_models if 'gemini' and '1.5' in model])
-    print(f"Available models: {available_models}")
     return available_models
 
 def process_response_from_gemini(response) -> tuple:
