@@ -182,16 +182,16 @@ async def show_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         InlineKeyboardButton("Start", callback_data="show_chats")
     ]
-    help_message = """
-        <b><u>Help</u></b> 
-        Here are the available commands: 
-        /start - Brings you to starting menu
-        /help - Brings you here. 
-        /settings - Enter Settings Menu 
-        /image [prompt] - Generates an image (Only use in a Conversation)
-        /end - Ends the current conversation (Only use in a Conversation)
-        /delete - Deletes the current conversation (Only use in a Conversation)
-        """
+    help_message = (
+        "<b><u>Help</u></b>\n"
+        "Here are the available commands:\n"
+        "/start - Brings you to starting menu\n"
+        "/help - Brings you here.\n"
+        "/settings - Enter Settings Menu\n"
+        "/image [prompt] - Generates an image (Only use in a Conversation)\n"
+        "/end - Ends the current conversation (Only use in a Conversation)\n"
+        "/delete - Deletes the current conversation (Only use in a Conversation)\n"
+        )
     if update.callback_query:
         await update.callback_query.answer()
         await update.callback_query.edit_message_text(help_message, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup([keyboard]))
