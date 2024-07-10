@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import (
-    filters,
     ApplicationBuilder,
     ContextTypes,
     CommandHandler,
@@ -14,7 +13,6 @@ from telegram.ext import (
     CallbackQueryHandler,
     ConversationHandler,
     PicklePersistence,
-    MessageHandler,
 )
 from settings.chatCompletionHandler import (
     settings, 
@@ -27,6 +25,8 @@ from settings.imageGenHandler import (
 from chat.chatMenu import (
     start,
     show_chats,
+    create_new_chat,
+    open_chat,
     show_help,
     kill_connection as chatMenu_kill_connection
 )
@@ -38,11 +38,10 @@ from helpers.userHelper import (
     kill_connection as user_kill_connection
 )
 from helpers.mainHelper import (
+    exit_menu,
     callback,
     admin_add_user,
     admin_reset_user_settings,
-    handle_unsupported_command,
-    handle_unsupported_message,
 )
 
 logging.basicConfig(
@@ -110,7 +109,15 @@ def main() -> None:
 
     # Chats menu
     chat_menu_handler = ConversationHandler(
-        entry_points=[CommandHandler("start", start), CommandHandler("help", show_help), CallbackQueryHandler(show_chats, pattern="^show_chats$")],
+        entry_points=[
+            CommandHandler("start", start), 
+            CommandHandler("help", show_help), 
+            CallbackQueryHandler(show_chats, pattern="^show_chats$"), 
+            CallbackQueryHandler(create_new_chat, pattern="^create_new_chat$"),
+            CallbackQueryHandler(open_chat, pattern="^open_chat_"),
+            CallbackQueryHandler(show_help, pattern="^help$"),
+            CallbackQueryHandler(exit_menu, pattern="^exit_menu$"),
+            ],
         states=get_chat_handlers(),
         fallbacks=[CallbackQueryHandler(start, pattern="^start$")],
         per_message=False,

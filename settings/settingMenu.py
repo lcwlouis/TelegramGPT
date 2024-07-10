@@ -22,13 +22,13 @@ PROVIDERS: Final = [
 
 def settings_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
-        [InlineKeyboardButton("Model", callback_data="model"),
-        InlineKeyboardButton("Temperature", callback_data="temperature")],
-        [InlineKeyboardButton("Max tokens", callback_data="max_tokens"),
-        InlineKeyboardButton("N", callback_data="n")],
-        [InlineKeyboardButton("Starting Prompt", callback_data="start_prompt"),
-        InlineKeyboardButton("Image Gen Settings", callback_data="image_settings")],
-        [InlineKeyboardButton("Reset to Default", callback_data="reset_to_default"), InlineKeyboardButton("Done", callback_data="show_chats")]
+        [InlineKeyboardButton("📚 Model", callback_data="model"),
+        InlineKeyboardButton("🔆 Temperature", callback_data="temperature")],
+        [InlineKeyboardButton("📐 Max tokens", callback_data="max_tokens"),
+        InlineKeyboardButton("➕ N", callback_data="n")],
+        [InlineKeyboardButton("💬 Starting Prompt", callback_data="start_prompt"),
+        InlineKeyboardButton("🖼 Image Gen Settings", callback_data="image_settings")],
+        [InlineKeyboardButton("🔁 Reset to Default", callback_data="reset_to_default"), InlineKeyboardButton("✅ Done", callback_data="show_chats")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
