@@ -125,7 +125,8 @@ async def open_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
                 # context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
             elif role == 'assistant':
                 if message_type == 'text':
-                    messages = [message[i:i+3800] for i in range(0, len(message), 3800)]
+                    from helpers.chatHelper import smart_split
+                    messages = smart_split(message)
                     for i, message_part in enumerate(messages):
                         try:
                             header = "<u><b>Universalis</b></u>: \n" if i == 0 else ""
@@ -190,7 +191,7 @@ async def del_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await cleanup(update, context)
         await show_chats(update, context)
         return SELECTING_CHAT
-    
+
 async def show_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         InlineKeyboardButton("Start", callback_data="show_chats")

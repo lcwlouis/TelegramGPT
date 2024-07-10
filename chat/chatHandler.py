@@ -13,6 +13,7 @@ import providers.geminiHandler as gemini
 import providers.ollamaHandler as ollama
 import settings.chatCompletionHandler as chatCompletionHandler
 import settings.imageGenHandler as imageGenHandler
+from helpers.chatHelper import smart_split
 
 # Define conversation states
 SELECTING_CHAT, CREATE_NEW_CHAT, CHATTING, RETURN_TO_MENU = range(4)
@@ -164,43 +165,44 @@ async def handle_gen_image(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     return CHATTING
 
-async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    file = await update.message.document.get_file()
-    file_name = update.message.document.file_name
-    file_extension = os.path.splitext(file_name)[1].lower()
+# RAG TO BE IMPLMENTED
+# async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
+#     file = await update.message.document.get_file()
+#     file_name = update.message.document.file_name
+#     file_extension = os.path.splitext(file_name)[1].lower()
 
-    allowed_extensions = ['.txt', '.pdf', '.docx', '.py']  # Add more as needed
+#     allowed_extensions = ['.txt', '.pdf', '.docx', '.py']  # Add more as needed
     
-    if file_extension not in allowed_extensions:
-        await update.message.reply_text(f"Sorry, {file_extension} files are not supported.")
-        return CHATTING
+#     if file_extension not in allowed_extensions:
+#         await update.message.reply_text(f"Sorry, {file_extension} files are not supported.")
+#         return CHATTING
 
-    file_path = f"downloads/{file_name}"
-    await file.download_to_drive(file_path)
+#     file_path = f"downloads/{file_name}"
+#     await file.download_to_drive(file_path)
 
-    # Process the file based on its type
-    if file_extension == '.txt':
-        with open(file_path, 'r') as f:
-            file_content = f.read()
-    else:
-        # For other file types, you might need additional libraries to extract text
-        # For example, use PyPDF2 for PDFs, python-docx for Word documents
-        file_content = f"File received: {file_name}"
+#     # Process the file based on its type
+#     if file_extension == '.txt':
+#         with open(file_path, 'r') as f:
+#             file_content = f.read()
+#     else:
+#         # For other file types, you might need additional libraries to extract text
+#         # For example, use PyPDF2 for PDFs, python-docx for Word documents
+#         file_content = f"File received: {file_name}"
 
-    # Save file info to chat history
-    chat_id = context.user_data.get('current_chat_id')
-    c.execute("INSERT INTO chat_history (chat_id, message, role) VALUES (?, ?, ?)", 
-            (chat_id, f"User uploaded file: {file_name}", 'user'))
-    conn_chats.commit()
+#     # Save file info to chat history
+#     chat_id = context.user_data.get('current_chat_id')
+#     c.execute("INSERT INTO chat_history (chat_id, message, role) VALUES (?, ?, ?)", 
+#             (chat_id, f"User uploaded file: {file_name}", 'user'))
+#     conn_chats.commit()
 
-    # Process file content with AI
-    messages = [{"role": "user", "content": f"Analyze this file content: {file_content}"}]
-    # Use your preferred AI model to process the file content
-    response = gpt.chat_with_gpt(messages)  # or chat_with_claude
+#     # Process file content with AI
+#     messages = [{"role": "user", "content": f"Analyze this file content: {file_content}"}]
+#     # Use your preferred AI model to process the file content
+#     response = gpt.chat_with_gpt(messages)  # or chat_with_claude
 
-    await update.message.reply_text(f"File {file_name} processed. AI response: {response}")
-    os.remove(file_path)  # Clean up the downloaded file
-    return CHATTING
+#     await update.message.reply_text(f"File {file_name} processed. AI response: {response}")
+#     os.remove(file_path)  # Clean up the downloaded file
+#     return CHATTING
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _, provider, model, temperature, max_tokens, n, start_prompt = chatCompletionHandler.get_current_settings(update.effective_user.id)
@@ -241,8 +243,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Check if chat history is empty for the current chat
             check_if_chat_history_exists(chat_id, start_prompt)
 
-            # chat_id = context.user_data.get('current_chat_id')
-            # check_if_chat_history_exists(chat_id, start_prompt)
             c.execute("INSERT INTO chat_history (chat_id, type, message, role) VALUES (?, ?, ?, ?)", 
                     (chat_id, "image_url", image_in_base64, 'user'))
             conn_chats.commit()
@@ -323,38 +323,24 @@ async def handle_chat_completion(provider, model, temperature, max_tokens, n, st
         f"\n\nInput: <code>{input_tokens}</code> tokens | Output: <code>{output_tokens}</code> tokens\n"
         f"Total input used: <code>{total_input_tokens}</code> tokens | Total output used: <code>{total_output_tokens}</code> tokens\n"
     )
-
-    # Split message into multiple parts if it's too long > 3800 characters
-    if len(message) > 3800:
-        message_parts = [message[i:i+3800] for i in range(0, len(message), 3800)]
-        # Append reply_end to the last message part, reply_heading the first message part
-        message_parts[0] = reply_heading + message_parts[0]
-        message_parts[-1] = message_parts[-1] + reply_end
-
-        for i, message_part in enumerate(message_parts):
-            if i == 0:
-                try:
-                    await bot_message.edit_text(message_part, parse_mode=ParseMode.HTML)
-                except Exception as e:
-                    message = await bot_message.reply_text(f"Message unable to format properly: {message}")
-                    context.user_data.setdefault('sent_messages', []).append(message.message_id)
-            else:
-                try:
-                    message = await bot_message.reply_text(message_part, parse_mode=ParseMode.HTML)
-                    context.user_data.setdefault('sent_messages', []).append(message.message_id)
-                except Exception as e:
-                    message = await bot_message.reply_text(f"Message unable to format properly: {message}")
-                    context.user_data.setdefault('sent_messages', []).append(message.message_id)
+    message_parts = smart_split(message)
+    message_parts[0] = reply_heading + message_parts[0]
+    message_parts[-1] = message_parts[-1] + reply_end
+    for i, message_part in enumerate(message_parts):
+        if i == 0:
+            try:
+                await bot_message.edit_text(message_part, parse_mode=ParseMode.HTML)
+            except Exception as e:
+                message = await bot_message.reply_text(f"Message unable to format properly: {message}")
+                context.user_data.setdefault('sent_messages', []).append(message.message_id)
+        else:
+            try:
+                message = await bot_message.reply_text(message_part, parse_mode=ParseMode.HTML)
+                context.user_data.setdefault('sent_messages', []).append(message.message_id)
+            except Exception as e:
+                message = await bot_message.reply_text(f"Message unable to format properly: {message}")
+                context.user_data.setdefault('sent_messages', []).append(message.message_id)
         return CHATTING
-    else:
-        reply = reply_heading + message + reply_end
-        try:
-            await bot_message.edit_text(reply, parse_mode=ParseMode.HTML)
-        except Exception as e:
-            message = await bot_message.reply_text(f"Message unable to format properly: {message}")
-            context.user_data.setdefault('sent_messages', []).append(message.message_id)
-        return CHATTING
-
 
 
 def get_chat_handlers():
@@ -370,7 +356,6 @@ def get_chat_handlers():
             CommandHandler("help", show_help),
             # Handle unsupported commands
             MessageHandler(filters.COMMAND, handle_unsupported_command),
-            # MessageHandler(~filters.COMMAND, handle_unsupported_message),
         ],
         CREATE_NEW_CHAT: [
             MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message),

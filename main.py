@@ -93,7 +93,8 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
     )
 
     # Split the message if it's too long
-    parts = [message[i : i + 4096] for i in range(0, len(message), 4096)]
+    from helpers.chatHelper import smart_split
+    parts = smart_split(message, 4096)
     for part in parts:
         # Finally, send the message
         await context.bot.send_message(
