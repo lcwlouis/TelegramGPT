@@ -287,10 +287,11 @@ async def handle_chat_completion(provider, model, temperature, max_tokens, n, st
         context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
         input_tokens, output_tokens, role, message = await claude.chat_with_claude(messages, model=model, temperature=temperature, max_tokens=max_tokens, system=start_prompt)
     elif provider == 'google':
-        chat_history = gemini.build_message_list_gemini(chat_history)
+        # Add user message to chat history for gemini only
+        chat_history = gemini.build_message_list_gemini(chat_history, user_message)
         bot_message = await update.message.reply_text("Working hard...")
         context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
-        input_tokens, output_tokens, role, message = await gemini.chat_with_gemini(user_message, model=model, temperature=temperature, max_tokens=max_tokens, message_history=chat_history, system=start_prompt)
+        input_tokens, output_tokens, role, message = await gemini.chat_with_gemini(model=model, temperature=temperature, max_tokens=max_tokens, message_history=chat_history, system=start_prompt)
     elif provider == 'ollama':
         chat_history = ollama.build_message_list_ollama(chat_history)
         bot_message = await update.message.reply_text("Working hard...")
@@ -317,21 +318,47 @@ async def handle_chat_completion(provider, model, temperature, max_tokens, n, st
             (total_input_tokens, total_output_tokens, chat_id))
     conn_chats.commit()
 
-    reply = (
-        f"<u><b>Universalis</b></u>: \n{message}\n\n"
-        f"Input: <code>{input_tokens}</code> tokens | Output: <code>{output_tokens}</code> tokens\n"
+    reply_heading = "<u><b>Universalis</b></u>: \n"
+    reply_end = (
+        f"\n\nInput: <code>{input_tokens}</code> tokens | Output: <code>{output_tokens}</code> tokens\n"
         f"Total input used: <code>{total_input_tokens}</code> tokens | Total output used: <code>{total_output_tokens}</code> tokens\n"
     )
-    
-    try:
-        await bot_message.edit_text(reply, parse_mode=ParseMode.HTML)
-    except Exception as e:
-        message = await bot_message.reply_text(f"Message unable to format properly: {message}")
-        context.user_data.setdefault('sent_messages', []).append(message.message_id)
-    return CHATTING
+
+    # Split message into multiple parts if it's too long > 3800 characters
+    if len(message) > 3800:
+        message_parts = [message[i:i+3800] for i in range(0, len(message), 3800)]
+        # Append reply_end to the last message part, reply_heading the first message part
+        message_parts[0] = reply_heading + message_parts[0]
+        message_parts[-1] = message_parts[-1] + reply_end
+
+        for i, message_part in enumerate(message_parts):
+            if i == 0:
+                try:
+                    await bot_message.edit_text(message_part, parse_mode=ParseMode.HTML)
+                except Exception as e:
+                    message = await bot_message.reply_text(f"Message unable to format properly: {message}")
+                    context.user_data.setdefault('sent_messages', []).append(message.message_id)
+            else:
+                try:
+                    message = await bot_message.reply_text(message_part, parse_mode=ParseMode.HTML)
+                    context.user_data.setdefault('sent_messages', []).append(message.message_id)
+                except Exception as e:
+                    message = await bot_message.reply_text(f"Message unable to format properly: {message}")
+                    context.user_data.setdefault('sent_messages', []).append(message.message_id)
+        return CHATTING
+    else:
+        reply = reply_heading + message + reply_end
+        try:
+            await bot_message.edit_text(reply, parse_mode=ParseMode.HTML)
+        except Exception as e:
+            message = await bot_message.reply_text(f"Message unable to format properly: {message}")
+            context.user_data.setdefault('sent_messages', []).append(message.message_id)
+        return CHATTING
+
+
 
 def get_chat_handlers():
-    from helpers.mainHelper import exit_menu
+    from helpers.mainHelper import exit_menu, handle_unsupported_command, handle_unsupported_message
     from chat.chatMenu import create_new_chat, open_chat, show_help, start, del_chat, end_chat
     return {
         SELECTING_CHAT: [
@@ -339,12 +366,18 @@ def get_chat_handlers():
             CallbackQueryHandler(open_chat, pattern="^open_chat_"),
             CallbackQueryHandler(show_help, pattern="^help$"),
             CallbackQueryHandler(exit_menu, pattern="^exit_menu$"),
-            CommandHandler("start", start)
+            CommandHandler("start", start),
+            CommandHandler("help", show_help),
+            # Handle unsupported commands
+            MessageHandler(filters.COMMAND, handle_unsupported_command),
+            # MessageHandler(~filters.COMMAND, handle_unsupported_message),
         ],
         CREATE_NEW_CHAT: [
             MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message),
             MessageHandler(filters.PHOTO & ~filters.COMMAND, handle_photo),
             CommandHandler("start", start),
+            # Handle unsupported commands
+            MessageHandler(filters.COMMAND, handle_unsupported_command),
         ],
         CHATTING: [
             MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message),
@@ -352,12 +385,18 @@ def get_chat_handlers():
             CommandHandler("image", handle_gen_image),
             CommandHandler("end", end_chat),
             CommandHandler("delete", del_chat),
-            CommandHandler("start", end_chat)
+            CommandHandler("start", end_chat),
+            # Handle unsupported commands
+            MessageHandler(filters.COMMAND, handle_unsupported_command),
         ],
         RETURN_TO_MENU: [
             CallbackQueryHandler(start, pattern="^show_chats$"),
             CommandHandler("start", start),
+            # Handle unsupported commands
+            MessageHandler(filters.COMMAND, handle_unsupported_command),
+            MessageHandler(~filters.COMMAND, handle_unsupported_message),
         ],
+
     }
 
 def kill_connection():

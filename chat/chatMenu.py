@@ -50,9 +50,17 @@ async def show_chats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     if len(chats) > 0:
-        message_text = f"<b><u>Hello {update.effective_user.first_name}</u></b>! Welcome to the <b>Universalis</b>, I am here to answer your questions about anything. \n\n<u>Select a chat or create a new one</u>:\n"
+        message_text = (
+            f"<u><b>Universalis</b></u> \n"
+            f"<b>Hello {update.effective_user.first_name}</b>! I am here to answer your questions about anything. \n\n"
+            f"<u>Select a chat or create a new one</u>:\n"
+        )
     else:
-        message_text = f"<b><u>Hello {update.effective_user.first_name}</u></b>! Welcome to the <b>Universalis</b>, I am here to answer your questions about anything. \n\n<u>Create a new chat</u>:\n"
+        message_text = (
+            f"<u><b>Universalis</b></u> \n"
+            f"<b>Hello {update.effective_user.first_name}</b>! I am here to answer your questions about anything. \n\n"
+            f"<u>Create a new one</u>:\n"
+        )
     
     # await context.bot.send_message(chat_id=update.effective_chat.id, text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
     try:
@@ -117,12 +125,16 @@ async def open_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
                 # context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
             elif role == 'assistant':
                 if message_type == 'text':
-                    try:
-                        add_to_message_list = await query.message.reply_text(f"<u><b>Universalis</b></u>: \n{message}", parse_mode=ParseMode.HTML)
-                        context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
-                    except Exception as e:
-                        add_to_message_list = await query.message.reply_text(f"Error formatting the message: \n{message}")
-                        context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
+                    messages = [message[i:i+3800] for i in range(0, len(message), 3800)]
+                    for i, message_part in enumerate(messages):
+                        try:
+                            header = "<u><b>Universalis</b></u>: \n" if i == 0 else ""
+                            add_to_message_list = await query.message.reply_text(f"{header}{message_part}", parse_mode=ParseMode.HTML)
+                            context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
+                        except Exception as e:
+                            header = "Error formatting the message: \n" if i == 0 else ""
+                            add_to_message_list = await query.message.reply_text(f"{header}{message_part}")
+                            context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
                 if message_type == 'image_url':
                     try:
                         decoded_bytes = base64.b64decode(message)
@@ -146,7 +158,7 @@ async def end_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         del context.user_data['current_chat_title']
     except KeyError:
         pass
-    message = await update.message.reply_text("Chat ended. Returning to chat selection.")
+    message = await update.message.reply_text("Chat ended. Cleaning up. Returning to chat selection.")
     context.user_data.setdefault('sent_messages', []).append(message.message_id)
     await cleanup(update, context)
     await show_chats(update, context)
@@ -184,11 +196,10 @@ async def show_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         InlineKeyboardButton("Start", callback_data="show_chats")
     ]
     help_message = (
-        "<b><u>Help</u></b>\n"
+        "<b><u>Universalis</u></b>\n"
         "Here are the available commands:\n"
         "/start - Brings you to starting menu\n"
         "/help - Brings you here.\n"
-        "/settings - Enter Settings Menu\n"
         "/image [prompt] - Generates an image (Only use in a Conversation)\n"
         "/end - Ends the current conversation (Only use in a Conversation)\n"
         "/delete - Deletes the current conversation (Only use in a Conversation)\n"

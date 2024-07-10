@@ -6,13 +6,15 @@ from dotenv import load_dotenv
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import (
+    filters,
     ApplicationBuilder,
     ContextTypes,
     CommandHandler,
     TypeHandler,
     CallbackQueryHandler,
     ConversationHandler,
-    PicklePersistence
+    PicklePersistence,
+    MessageHandler,
 )
 from settings.chatCompletionHandler import (
     settings, 
@@ -38,7 +40,9 @@ from helpers.userHelper import (
 from helpers.mainHelper import (
     callback,
     admin_add_user,
-    admin_reset_user_settings
+    admin_reset_user_settings,
+    handle_unsupported_command,
+    handle_unsupported_message,
 )
 
 logging.basicConfig(
@@ -88,10 +92,13 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
         f"<pre>{html.escape(tb_string)}</pre>"
     )
 
-    # Finally, send the message
-    await context.bot.send_message(
-        chat_id=ERROR_CHAT_ID, text=message, parse_mode=ParseMode.HTML
-    )
+    # Split the message if it's too long
+    parts = [message[i : i + 4096] for i in range(0, len(message), 4096)]
+    for part in parts:
+        # Finally, send the message
+        await context.bot.send_message(
+            chat_id=ERROR_CHAT_ID, text=part, parse_mode=ParseMode.HTML
+        )
 
 # Main
 def main() -> None:
@@ -110,7 +117,7 @@ def main() -> None:
     
     # Settings menu handler
     settings_handler = ConversationHandler(
-        entry_points=[CommandHandler("settings", settings), CallbackQueryHandler(settings, pattern="^settings$")],
+        entry_points=[CallbackQueryHandler(settings, pattern="^settings$")],
         states=settings_menu_handler(),
         fallbacks=[CallbackQueryHandler(settings, pattern="^settings$")],
         per_message=False
@@ -120,9 +127,13 @@ def main() -> None:
     admin_add_cmd_handler = CommandHandler("admin_add", admin_add_user)
     admin_reset_cmd_handler = CommandHandler("admin_reset", admin_reset_user_settings)
 
+    # Handle unsupported commands and messages
+    # unsupported_cmd_handler = MessageHandler(filters.COMMAND, handle_unsupported_command)
+    # unsupported_msg_handler = MessageHandler(~filters.COMMAND, handle_unsupported_message)
 
     # Add handlers
-
+    # application.add_handler(unsupported_cmd_handler, 1)
+    # application.add_handler(unsupported_msg_handler, 1)
     application.add_handler(callback_handler, -1)
     application.add_handler(chat_menu_handler)
     application.add_handler(settings_handler)
