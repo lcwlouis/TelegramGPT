@@ -37,6 +37,7 @@ COLUMNS: Final = 2
 
 # Default starting message from file system_prompt.txt
 DEFAULT_STARTING_MESSAGE = open(PROMPT_PATH, 'r').read()
+DEFAULT_MAX_TOKENS = 512
 
 # Store user preferences in database
 c = conn_settinngs.cursor()
@@ -45,7 +46,7 @@ c.execute('''CREATE TABLE IF NOT EXISTS user_preferences
         provider TEXT DEFAULT "openai", 
         model TEXT DEFAULT "gpt-3.5-turbo", 
         temperature FLOAT DEFAULT 0.7, 
-        max_tokens INTEGER DEFAULT 200, 
+        max_tokens INTEGER DEFAULT 512, 
         n INTEGER DEFAULT 1, 
         start_prompt TEXT DEFAULT ""
         )''')
@@ -57,7 +58,6 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     result = c.fetchone()
     if result is None:
         print(f"User {user_id} not found in user_preferences table")
-        print(DEFAULT_STARTING_MESSAGE)
         c.execute('INSERT INTO user_preferences (user_id, start_prompt) VALUES (?, ?)', (user_id, DEFAULT_STARTING_MESSAGE))
         conn_settinngs.commit()
         c.execute('SELECT * FROM user_preferences WHERE user_id = ?', (user_id,))
@@ -68,7 +68,9 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if update.message is None:
         query = update.callback_query
         await query.message.edit_text(
-            f"<b><u>Current settings:</u></b>\n"
+            f"<b><u>Universalis</u></b>\n\n"
+            f"<b>Current settings:</b>\n"
+            f"------------------\n"
             f"<b>Provider: </b>{provider}\n"
             f"<b>Model:</b> {model}\n"
             f"<b>Temperature:</b> {temperature}\n"
@@ -81,7 +83,9 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         )
         return SELECTING_OPTION
     message = await update.message.reply_text(
-        f"<b><u>Current settings:</u></b>\n"
+        f"<b><u>Universalis</u></b>\n\n"
+        f"<b>Current settings:</b>\n"
+        f"------------------\n"
         f"<b>Provider: </b>{provider}\n"
         f"<b>Model:</b> {model}\n"
         f"<b>Temperature:</b> {temperature}\n"
@@ -328,7 +332,7 @@ async def reset_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     user_id = update.effective_user.id
     c.execute('DELETE FROM user_preferences WHERE user_id = ?', (user_id,))
     conn_settinngs.commit()
-    c.execute('INSERT INTO user_preferences (user_id, start_prompt) VALUES (?, ?)', (user_id, DEFAULT_STARTING_MESSAGE))
+    c.execute('INSERT INTO user_preferences (user_id, max_tokens, start_prompt) VALUES (?, ?, ?)', (user_id, DEFAULT_MAX_TOKENS, DEFAULT_STARTING_MESSAGE))
     conn_settinngs.commit()
     c.execute('SELECT * FROM user_preferences WHERE user_id = ?', (user_id,))
     row = c.fetchone()
@@ -339,40 +343,78 @@ async def reset_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 def settings_menu_handler():
     from chat.chatMenu import start
+    from helpers.mainHelper import handle_unsupported_message, handle_unsupported_command
     return {
         SELECTING_OPTION: [
             CallbackQueryHandler(option_selected),
             CommandHandler("start", start),
+            # Handle unsupported commands
+            MessageHandler(filters.COMMAND, handle_unsupported_command),
+            MessageHandler(~filters.COMMAND, handle_unsupported_message),
             ],
-        SELECTING_PROVIDER: [CallbackQueryHandler(provider_selected)],
-        SELECTING_MODEL: [CallbackQueryHandler(model_selected)],
+        SELECTING_PROVIDER: [
+            CallbackQueryHandler(provider_selected),
+            # Handle unsupported commands
+            MessageHandler(filters.COMMAND, handle_unsupported_command),
+            MessageHandler(~filters.COMMAND, handle_unsupported_message),
+            ],
+        SELECTING_MODEL: [
+            CallbackQueryHandler(model_selected),
+            # Handle unsupported commands
+            MessageHandler(filters.COMMAND, handle_unsupported_command),
+            MessageHandler(~filters.COMMAND, handle_unsupported_message),
+            ],
         ENTERING_TEMPERATURE: [
             MessageHandler(filters.TEXT & ~filters.COMMAND, temperature_entered),
             CallbackQueryHandler(settingMenu.back_to_settings, pattern="^back_to_settings$"),
+            # Handle unsupported commands
+            MessageHandler(filters.COMMAND, handle_unsupported_command),
         ],
         ENTERING_MAX_TOKENS: [
             MessageHandler(filters.TEXT & ~filters.COMMAND, max_tokens_entered),
-            CallbackQueryHandler(settingMenu.back_to_settings, pattern="^back_to_settings$")
+            CallbackQueryHandler(settingMenu.back_to_settings, pattern="^back_to_settings$"),
+            # Handle unsupported commands
+            MessageHandler(filters.COMMAND, handle_unsupported_command),
         ],
         ENTERING_N: [
             MessageHandler(filters.TEXT & ~filters.COMMAND, n_entered),
-            CallbackQueryHandler(settingMenu.back_to_settings, pattern="^back_to_settings$")
+            CallbackQueryHandler(settingMenu.back_to_settings, pattern="^back_to_settings$"),
+            # Handle unsupported commands
+            MessageHandler(filters.COMMAND, handle_unsupported_command),
         ],
         ENTERING_START_PROMPT: [
             MessageHandler(filters.TEXT & ~filters.COMMAND, start_prompt_entered),
-            CallbackQueryHandler(settingMenu.back_to_settings, pattern="^back_to_settings$")
+            CallbackQueryHandler(settingMenu.back_to_settings, pattern="^back_to_settings$"),
+            # Handle unsupported commands
+            MessageHandler(filters.COMMAND, handle_unsupported_command),
         ],
-        SELECT_RESET: [CallbackQueryHandler(reset_selected)],
+        SELECT_RESET: [
+            CallbackQueryHandler(reset_selected),
+            CommandHandler("start", start),
+            # Handle unsupported commands
+            MessageHandler(filters.COMMAND, handle_unsupported_command),
+            MessageHandler(~filters.COMMAND, handle_unsupported_message),
+            ],
         SELECTING_IMAGE_SETTINGS: [
             CallbackQueryHandler(image_option_selected),
+            CommandHandler("start", start),
+            # Handle unsupported commands
+            MessageHandler(filters.COMMAND, handle_unsupported_command),
+            MessageHandler(~filters.COMMAND, handle_unsupported_message),
         ],
         SELECTING_IMAGE_SIZE: [
             CallbackQueryHandler(image_size_selected),
             CallbackQueryHandler(back_to_image_settings, pattern="^back_to_image_settings$"),
+            # Handle unsupported commands
+            MessageHandler(filters.COMMAND, handle_unsupported_command),
+            MessageHandler(~filters.COMMAND, handle_unsupported_message),
         ],
         SELECTING_IMAGE_MODEL: [
             CallbackQueryHandler(image_model_selected),
             CallbackQueryHandler(back_to_image_settings, pattern="^back_to_image_settings$"),
+            # Handle unsupported commands
+            MessageHandler(filters.COMMAND, handle_unsupported_command),
+            MessageHandler(~filters.COMMAND, handle_unsupported_message),
         ],
     }
 

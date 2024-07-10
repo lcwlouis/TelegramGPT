@@ -36,7 +36,9 @@ async def show_current_settings(update: Update, context: ContextTypes.DEFAULT_TY
     settings = context.user_data['settings']
     keyboard = settings_keyboard()
     message_text = (
-        f"<b><u>Current settings:</u></b>\n"
+        f"<b><u>Universalis</u></b>\n\n"
+        f"<b>Current settings:</b>\n"
+        f"------------------\n"
         f"<b>Provider:</b> {settings[0]}\n"
         f"<b>Model:</b> {settings[1]}\n"
         f"<b>Temperature:</b> {settings[2]}\n"

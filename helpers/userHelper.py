@@ -41,7 +41,10 @@ def add_user(user_id: int) -> None:
     # insert user only if they don't exist
     c.execute("SELECT user_id FROM user_preferences WHERE user_id=?", (user_id,))
     if c.fetchone() is None:
-        c.execute("INSERT INTO user_preferences (user_id, start_prompt) VALUES (?, ?)", (user_id, DEFAULT_STARTING_MESSAGE))
+        c.execute(
+            "INSERT INTO user_preferences (user_id, max_tokens, start_prompt) VALUES (?, ?, ?)", 
+            (user_id, 512, DEFAULT_STARTING_MESSAGE)
+            )
     conn_users.commit()
 
 def kill_connection() -> None:
