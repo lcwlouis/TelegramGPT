@@ -96,9 +96,20 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
     parts = smart_split(message, 4096)
     for part in parts:
         # Finally, send the message
-        await context.bot.send_message(
-            chat_id=ERROR_CHAT_ID, text=part, parse_mode=ParseMode.HTML
-        )
+        try:
+            await context.bot.send_message(
+                chat_id=ERROR_CHAT_ID, text=part, parse_mode=ParseMode.HTML
+            )
+        except Exception as e:
+            if 'Message is not modified' in str(e):
+                # If the message is not modified don't send anything
+                pass
+            else:
+                # undo html escape
+                part = html.unescape(part)
+                await context.bot.send_message(
+                    chat_id=ERROR_CHAT_ID, text=part
+                )
 
 # Main
 def main() -> None:
