@@ -2,12 +2,16 @@ import sqlite3
 import logging
 import os
 import base64
+import time
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
 # Define conversation states
 SELECTING_CHAT, CREATE_NEW_CHAT, CHATTING, RETURN_TO_MENU = range(4)
+
+# Define max chats per page
+MAX_CHATS_PER_PAGE = 5
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
@@ -29,27 +33,73 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     from helpers.mainHelper import cleanup
     await cleanup(update, context)
     context.user_data.clear()
+    context.user_data['chat_page'] = 0  # Reset the page to 0
     return await show_chats(update, context)
 
 # Chats Menu 
 async def show_chats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.effective_user.id
-    c.execute("SELECT id, chat_title FROM chats WHERE user_id = ?", (user_id,))
+    page = context.user_data.get('chat_page', 0)
+    chats_per_page = MAX_CHATS_PER_PAGE
+
+    # Debounce mechanism
+    current_time = time.time()
+    last_update_time = context.user_data.get('last_update_time', 0)
+    if current_time - last_update_time < 0.5:  # 500ms debounce
+        return SELECTING_CHAT
+    context.user_data['last_update_time'] = current_time
+
+    # Get total number of chats
+    c.execute("SELECT COUNT(*) FROM chats WHERE user_id = ?", (user_id,))
+    total_chats = c.fetchone()[0]
+
+    # Calculate total pages
+    total_pages = max(1, (total_chats - 1) // chats_per_page + 1)
+
+    # Ensure page is within valid range
+    page = max(0, min(page, total_pages - 1))
+    context.user_data['chat_page'] = page
+
+    # Get chats for current page
+    c.execute("SELECT id, chat_title FROM chats WHERE user_id = ? ORDER BY id DESC LIMIT ? OFFSET ?", 
+              (user_id, chats_per_page, page * chats_per_page))
     chats = c.fetchall()
 
     keyboard = []
     for chat_id, chat_title in chats:
         chat_title = f"💬 {chat_title}"
         keyboard.append([InlineKeyboardButton(chat_title, callback_data=f"open_chat_{chat_id}")])
-    
-    keyboard.append([InlineKeyboardButton("🆕New Chat", callback_data="create_new_chat")])
-    keyboard.append([InlineKeyboardButton("⚙️Settings", callback_data="settings")])
-    keyboard.append([InlineKeyboardButton("❓Help", callback_data="help")])
-    keyboard.append([InlineKeyboardButton("🚫Exit", callback_data="exit_menu")])
+
+    # Add pagination buttons if needed
+    if total_pages > 1:
+        pagination_buttons = []
+        if page > 0:
+            pagination_buttons.append(InlineKeyboardButton("⬅️ Previous", callback_data="prev_page"))
+        else:
+            pagination_buttons.append(InlineKeyboardButton("1️⃣ First Page", callback_data="no_page"))
+        
+        if page < total_pages - 1:
+            pagination_buttons.append(InlineKeyboardButton("Next ➡️", callback_data="next_page"))
+        else:
+            pagination_buttons.append(InlineKeyboardButton("Last Page 🔚", callback_data="no_page"))
+        pagination_buttons.insert(1, InlineKeyboardButton("🆕New Chat", callback_data="create_new_chat"))
+        keyboard.append(pagination_buttons)
+    else:
+        keyboard.append([InlineKeyboardButton("🆕New Chat", callback_data="create_new_chat")])
+
+    keyboard.append([InlineKeyboardButton("❓Help", callback_data="help"), InlineKeyboardButton("⚙️Settings", callback_data="settings"), InlineKeyboardButton("🚫Exit", callback_data="exit_menu")])
+    # keyboard.append([])
 
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    if len(chats) > 0:
+    if total_pages > 1:
+        message_text = (
+            f"<u><b>Universalis</b></u> \n"
+            f"<b>Hello {update.effective_user.first_name}</b>! I am here to answer your questions about anything. \n\n"
+            f"Page {page + 1} of {total_pages}\n"
+            f"<u>Select a chat or create a new one</u>:\n"
+        )
+    elif len(chats) > 0:
         message_text = (
             f"<u><b>Universalis</b></u> \n"
             f"<b>Hello {update.effective_user.first_name}</b>! I am here to answer your questions about anything. \n\n"
@@ -62,17 +112,18 @@ async def show_chats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             f"<u>Create a new one</u>:\n"
         )
     
-    # await context.bot.send_message(chat_id=update.effective_chat.id, text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
     try:
         query = update.callback_query
-        await query.message.edit_text(text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+        # await query.answer()  # Always answer the callback query
+        if query.message.text != message_text or query.message.reply_markup != reply_markup:
+            await query.message.edit_text(text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
         return SELECTING_CHAT
     except:
-        # Edit existing /start message
+        # This is not a callback query, so send a new message
         message = await context.bot.send_message(chat_id=update.effective_chat.id, text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
         context.user_data.setdefault('sent_messages', []).append(message.message_id)
-        
         return SELECTING_CHAT
+    
     
 async def create_new_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.callback_query.answer()
@@ -151,6 +202,27 @@ async def open_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     else:
         pass
     return CHATTING
+
+async def prev_page(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data['chat_page'] = max(0, context.user_data.get('chat_page', 0) - 1)
+    try:
+        return await show_chats(update, context)
+    except Exception as e:
+        print(f"Ignoring spam press of button: {e}")
+        return SELECTING_CHAT
+
+async def next_page(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data['chat_page'] = context.user_data.get('chat_page', 0) + 1
+    try:
+        return await show_chats(update, context)
+    except Exception as e:
+        print(f"Ignoring spam press of button: {e}")
+        return SELECTING_CHAT
+
+async def no_page(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    # Just answer the callback query without changing anything
+    await update.callback_query.answer()
+    return SELECTING_CHAT
 
 async def end_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     from helpers.mainHelper import cleanup

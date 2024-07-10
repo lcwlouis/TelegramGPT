@@ -345,13 +345,16 @@ async def handle_chat_completion(provider, model, temperature, max_tokens, n, st
 
 def get_chat_handlers():
     from helpers.mainHelper import exit_menu, handle_unsupported_command, handle_unsupported_message
-    from chat.chatMenu import create_new_chat, open_chat, show_help, start, del_chat, end_chat
+    from chat.chatMenu import create_new_chat, open_chat, show_help, start, del_chat, end_chat, prev_page, next_page, no_page
     return {
         SELECTING_CHAT: [
             CallbackQueryHandler(create_new_chat, pattern="^create_new_chat$"),
             CallbackQueryHandler(open_chat, pattern="^open_chat_"),
             CallbackQueryHandler(show_help, pattern="^help$"),
             CallbackQueryHandler(exit_menu, pattern="^exit_menu$"),
+            CallbackQueryHandler(prev_page, pattern="^prev_page$"),
+            CallbackQueryHandler(next_page, pattern="^next_page$"),
+            CallbackQueryHandler(no_page, pattern="^no_page$"),
             CommandHandler("start", start),
             CommandHandler("help", show_help),
             # Handle unsupported commands

@@ -28,6 +28,9 @@ from chat.chatMenu import (
     create_new_chat,
     open_chat,
     show_help,
+    prev_page,
+    next_page,
+    no_page,
     kill_connection as chatMenu_kill_connection
 )
 from chat.chatHandler import (
@@ -128,6 +131,9 @@ def main() -> None:
             CallbackQueryHandler(open_chat, pattern="^open_chat_"),
             CallbackQueryHandler(show_help, pattern="^help$"),
             CallbackQueryHandler(exit_menu, pattern="^exit_menu$"),
+            CallbackQueryHandler(prev_page, pattern="^prev_page$"),
+            CallbackQueryHandler(next_page, pattern="^next_page$"),
+            CallbackQueryHandler(no_page, pattern="^no_page$"),
             ],
         states=get_chat_handlers(),
         fallbacks=[CallbackQueryHandler(start, pattern="^start$")],
