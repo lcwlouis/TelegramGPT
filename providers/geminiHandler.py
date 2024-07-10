@@ -15,7 +15,7 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 # Create an instance of the Gemini API
 gemini.configure(api_key=GEMINI_API_KEY)
 
-def build_message_list_gemini(chat_history) -> list:
+def build_message_list_gemini(chat_history, user_message) -> list:
     messages = []
     length_of_history = len(chat_history)
     for i in range(length_of_history):
@@ -38,10 +38,16 @@ def build_message_list_gemini(chat_history) -> list:
                 f"Image was skipped due to technical limitation", 
                 ]
             })
+    messages.append({
+    "role": "user", 
+    "parts": [
+        f"{user_message}", 
+        ]
+    })
     return messages
 
 # function to interact with Gemini
-async def chat_with_gemini(input_message, model='gemini-1.5-flash', temperature=0.5, max_tokens=100, message_history=[], system="") -> str:
+async def chat_with_gemini(model='gemini-1.5-flash', temperature=0.5, max_tokens=100, message_history=[], system="") -> str:
     generation_config = {
         "temperature": temperature,
         "top_p": 0.95,
@@ -61,7 +67,7 @@ async def chat_with_gemini(input_message, model='gemini-1.5-flash', temperature=
         safety_settings=safety_settings,
         system_instruction=system,
     )
-    response = await model.generate_content_async(input_message)
+    response = await model.generate_content_async(message_history)
     # chat_session = model.start_chat(history=message_history)
     # response = await chat_session.send_message_async(input_message)
     return process_response_from_gemini(response)
