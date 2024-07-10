@@ -1,5 +1,6 @@
 import logging
 import os
+import asyncio
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes, ApplicationHandlerStop, ConversationHandler
@@ -70,19 +71,17 @@ async def cleanup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if 'sent_messages' in context.user_data:
         min_id = min(context.user_data['sent_messages'])
         max_id = max(context.user_data['sent_messages']) + 1
-        for message_id in range(min_id, max_id):
-            try:
-                await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=message_id)
-            except Exception as e:
-                logger.warning(f"Failed to delete message {message_id}: {e}")
+        delete_message_tasks = [context.bot.delete_message(chat_id=update.effective_chat.id, message_id=message_id) for message_id in range(min_id, max_id)]
+        await asyncio.gather(*delete_message_tasks)
         context.user_data['sent_messages'] = []
 
 async def exit_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await cleanup(update, context)
-    # Clear all user data
-    context.user_data.clear()
     # Send a new message telling the user to /start
     message = await context.bot.send_message(chat_id=update.effective_chat.id, text="Type /start to start again")
+    await cleanup(update, context)
+    #
+    # Clear all user data
+    context.user_data.clear()
     # print(f"Sent message: {message.message_id}")
     context.user_data.setdefault('sent_messages', []).append(message.message_id)
     return ConversationHandler.END
@@ -106,3 +105,17 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         message = await update.effective_message.reply_text(f"Hey! You are not allowed to use me! Ask the admin to add your user id: <code>{update.effective_user.id}</code>", parse_mode=ParseMode.HTML)
         context.user_data.setdefault('sent_messages', []).append(message.message_id)
         raise ApplicationHandlerStop
+
+async def handle_unsupported_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = await update.effective_message.reply_text(
+        f"<u><b>Universalis</b></u> \n"
+        f"{update.effective_message.text} command is not available in this menu.", 
+        parse_mode=ParseMode.HTML)
+    context.user_data.setdefault('sent_messages', []).append(message.message_id)
+
+async def handle_unsupported_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = await update.effective_message.reply_text(
+        f"<u><b>Universalis</b></u> \n"
+        f"Sending messages is not available here", 
+        parse_mode=ParseMode.HTML)
+    context.user_data.setdefault('sent_messages', []).append(message.message_id)
