@@ -136,17 +136,25 @@ async def handle_gen_image(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     prompt = update.message.text.split(' ', 1)[1]
     # print(prompt) # DEBUG_USE
     stored_message = "Generate an image prompt: " + prompt
-    
-    # Save user message to database
-    c.execute("INSERT INTO chat_history (chat_id, message, role) VALUES (?, ?, ?)", 
-            (chat_id, stored_message, 'user'))
-    conn_chats.commit()
 
     # Retrieve image gen settings from database
     _, model, size = imageGenHandler.get_image_settings(update.effective_user.id)
 
     # Call dalle API
-    img_base64 = await gpt.image_gen_with_openai(prompt=prompt, model=model,n=1, size=size)
+    try:
+        img_base64 = await gpt.image_gen_with_openai(prompt=prompt, model=model,n=1, size=size)
+        # Save user message to database only if image was generated
+        c.execute("INSERT INTO chat_history (chat_id, message, role) VALUES (?, ?, ?)", 
+                (chat_id, stored_message, 'user'))
+        conn_chats.commit()
+    except Exception as e:
+        message_id = await update.message.reply_text(
+            f"<u><b>Universalis</b></u> \nAn error occurred while generating the image: {e}. The image prompt will not be saved.", 
+            parse_mode=ParseMode.HTML
+            )
+        logger.error(f"An error occurred while generating the image: {e}.")
+        context.user_data.setdefault('sent_messages', []).append(message_id.message_id)
+        return CHATTING
 
     if img_base64:
         # Save AI response to database in base64 format
@@ -158,9 +166,9 @@ async def handle_gen_image(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         img_bytes = base64.b64decode(img_base64)
 
         # Send the image
-        message = await update.message.reply_photo(photo=img_bytes)
+        message = await update.message.reply_photo(photo=img_bytes, caption=f"<u><b>Universalis</b></u>: \n", parse_mode=ParseMode.HTML)
     else:
-        message = await update.message.reply_text("Sorry, I couldn't generate the image. Please try again.")
+        message = await update.message.reply_text("<u><b>Universalis</b></u> \nAn error occurred while generating the image.", parse_mode=ParseMode.HTML)
     
     context.user_data.setdefault('sent_messages', []).append(message.message_id)
 
