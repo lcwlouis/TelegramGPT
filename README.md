@@ -1,32 +1,69 @@
-# TeleGPT
-A Gen AI bot for use on Telegram. No reason for it to exist besides the fact that I wanted to build it :D You could just use OpenAI's chatgpt.com instead xD
+# TeleGPT: A Versatile Telegram-based AI Assistant
 
-# What is this?
-This is a simple telegram bot that allows an verified user id to access GPT or Claude or Gemini. It uses API of OpenAI only as of now. It allows the user to choose the model that they want to access with as well as the temperature and max tokens. It also allows the user to access the Gemini model.
+TeleGPT is a Telegram bot that provides users with access to powerful language models, including GPT, Claude, Gemini, and Ollama. This project allows users to interact with these AI models directly through Telegram, enabling a wide range of conversational and creative capabilities.
 
+## Features
 
-## To Do List
-- Add embeddings
-- Add more types of photos handling
-- Add search functionality
+- **Multi-Model Access**: Users can seamlessly switch between different language models, including GPT, Claude, Gemini, and Ollama.
+- **Chat Completion**: Engage in natural language conversations and receive intelligent responses from the AI models.
+- **Vision Capabilities**: Utilize applicable models to process and analyze images.
+- **Customizable Prompts and Settings**: Tailor the bot's behavior by adjusting prompts, temperature, max tokens, and other settings.
+- **Image Generation**: Generate unique images based on user prompts.
+- **Chat History and Pagination**: Keep track of conversation history and navigate through chat pages.
 
-## How to use
+## Roadmap
+
+- Implement a `/long` command to handle multi-message prompts
+- Automatically filter the keyboard to show only available models and providers
+- Add support for embeddings
+- Enhance photo handling capabilities
+- Implement search functionality
+
+## Installation and Setup
+
 1. Clone the repository
-2. Install the requirements
-3. Create a .env file with the following
-```
-ENVIRONMENT=DEV
-TELEGRAM_BOT_TOKEN_DEV=YOUR_TELEGRAM_BOT_TOKEN_FOR_DEV_TESTING // You can modify the code in main for this portion to remove this
-TELEGRAM_BOT_TOKEN_PROD=YOUR_TELEGRAM_BOT_TOKEN
-TELEGRAM_WHITELISTED_IDS=TELEGRAM IDS // Separated by comma eg. 123456789,987654321
-TELEGRAM_ADMIN_ID=YOUR_TELEGRAM_ADMIN_ID // This only takes one id
-TELEGRAM_ERROR_CHAT_ID=TELEGRAM_CHAT_ID // This only takes one id and will require you to add the bot to a group chat for it to report
-OPENAI_API_KEY=YOUR_OPENAI_API_KEY
-CLAUDE_API_KEY=YOUR_ANTHROPIC_API_KEY
-GEMINI_API_KEY=YOUR_GOOGLE_GEMINI_API_KEY
-OLLAMA_URL=YOUR_OLLAMA_URL
-DB_DIR=data // You can choose your own directory to store your data
-PROMPT_DIR=prompts // You can choose your own directory to store your prompts
-```
-4. Create a folder in root "/prompts" and store your prompts in system_prompt.txt and title_system_prompt.txt
-5. Run the bot using `pymon main.py`
+2. Install the required dependencies: `pip install -r requirements.txt`
+3. Create a `.env` file in the project root and populate it with the necessary environment variables:
+
+   ```
+   # Environment
+   ENVIRONMENT=DEV
+
+   # Telegram Bot
+   TELEGRAM_BOT_TOKEN_DEV=YOUR_TELEGRAM_BOT_TOKEN_FOR_DEV_TESTING
+   TELEGRAM_BOT_TOKEN_PROD=YOUR_TELEGRAM_BOT_TOKEN
+   TELEGRAM_WHITELISTED_IDS=123456789,987654321
+   TELEGRAM_ADMIN_ID=YOUR_TELEGRAM_ADMIN_ID
+   TELEGRAM_ERROR_CHAT_ID=TELEGRAM_CHAT_ID
+
+   # API Keys
+   OPENAI_API_KEY=YOUR_OPENAI_API_KEY
+   CLAUDE_API_KEY=YOUR_ANTHROPIC_API_KEY
+   GEMINI_API_KEY=YOUR_GOOGLE_GEMINI_API_KEY
+   OLLAMA_URL=YOUR_OLLAMA_URL
+
+   # Directories
+   DB_DIR=data
+   PROMPT_DIR=prompts
+   ```
+
+
+4. Create a folder in the project root called `/prompts` and store your custom prompts in `system_prompt.txt` and `title_system_prompt.txt`.
+5. Run the bot using `python main.py`.
+
+## Technologies Used
+
+TeleGPT is built using a variety of technologies, including:
+- [Python Telegram Bot Framework](https://github.com/python-telegram-bot/python-telegram-bot)
+- [Python](https://www.python.org)
+- [Docker](https://www.docker.com)
+- [SQLite](https://www.sqlite.org)
+- [OpenAI](https://openai.com)
+- [Anthropic](https://anthropic.com)
+- [Google Gemini](https://deepmind.google/technologies/gemini/)
+- [Ollama](https://ollama.com/)
+
+
+<!-- ## Contributing
+
+We welcome contributions from the community! If you'd like to report issues, suggest features, or submit pull requests, please follow the guidelines outlined in the [CONTRIBUTING.md](CONTRIBUTING.md) file. -->
