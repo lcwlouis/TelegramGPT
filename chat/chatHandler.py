@@ -277,29 +277,52 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return CHATTING
 
 async def handle_chat_completion(provider, model, temperature, max_tokens, n, start_prompt, chat_history, user_message, chat_id, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    input_tokens = 0
+    output_tokens = 0
+    role = None
+    message = None
     if provider == 'openai':
         messages = gpt.build_message_list_gpt(chat_history)
         bot_message = await update.message.reply_text("Working hard...")
         context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
-        input_tokens, output_tokens, role, message = await gpt.chat_with_gpt(messages, model=model, temperature=temperature, max_tokens=max_tokens, n=n)
+        try:
+            input_tokens, output_tokens, role, message = await gpt.chat_with_gpt(messages, model=model, temperature=temperature, max_tokens=max_tokens, n=n)
+        except Exception as e:
+            await bot_message.edit_text(f"<u><b>Universalis</b></u>: \nAn error occurred while talking to GPT: {e}", parse_mode=ParseMode.HTML)
+            return CHATTING
     elif provider == 'claude':
         messages = claude.build_message_list_claude(chat_history)
         bot_message = await update.message.reply_text("Working hard...")
         context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
-        input_tokens, output_tokens, role, message = await claude.chat_with_claude(messages, model=model, temperature=temperature, max_tokens=max_tokens, system=start_prompt)
+        try:
+            input_tokens, output_tokens, role, message = await claude.chat_with_claude(messages, model=model, temperature=temperature, max_tokens=max_tokens, system=start_prompt)
+        except Exception as e:
+            await bot_message.edit_text(f"<u><b>Universalis</b></u>: \nAn error occurred while talking to Claude: {e}", parse_mode=ParseMode.HTML)
+            return CHATTING
     elif provider == 'google':
         # Add user message to chat history for gemini only
         chat_history = gemini.build_message_list_gemini(chat_history, user_message)
         bot_message = await update.message.reply_text("Working hard...")
         context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
-        input_tokens, output_tokens, role, message = await gemini.chat_with_gemini(model=model, temperature=temperature, max_tokens=max_tokens, message_history=chat_history, system=start_prompt)
+        try:
+            input_tokens, output_tokens, role, message = await gemini.chat_with_gemini(model=model, temperature=temperature, max_tokens=max_tokens, message_history=chat_history, system=start_prompt)
+        except Exception as e:
+            await bot_message.edit_text(f"<u><b>Universalis</b></u>: \nAn error occurred while talking to Gemini: {e}", parse_mode=ParseMode.HTML)
+            return CHATTING
     elif provider == 'ollama':
+        # Check if Ollama is available
+        from providers.ollamaHandler import check_server_status
+        if not check_server_status():
+            await bot_message.edit_text("<u><b>Universalis</b></u>: \nSorry Ollama is currently unavailable. \nPlease /end and change model in settings.", parse_mode=ParseMode.HTML)
+            return CHATTING
+
         chat_history = ollama.build_message_list_ollama(chat_history)
         bot_message = await update.message.reply_text("Working hard...")
         context.user_data.setdefault('sent_messages', []).append(bot_message.message_id)
-        input_tokens, output_tokens, role, message = await ollama.chat_with_ollama(chat_history, model=model, temperature=temperature, max_tokens=max_tokens)
-        if input_tokens == -1 and output_tokens == -1:
-            await bot_message.edit_text("<u><b>Universalis</b></u>: \nSorry Ollama is currently unavailable. \nPlease /end and change model in settings.")
+        try:
+            input_tokens, output_tokens, role, message = await ollama.chat_with_ollama(chat_history, model=model, temperature=temperature, max_tokens=max_tokens)
+        except Exception as e:
+            await bot_message.edit_text(f"<u><b>Universalis</b></u>: \nAn error occurred while talking to Ollama: {e}", parse_mode=ParseMode.HTML)
             return CHATTING
 
     # Save AI response to database

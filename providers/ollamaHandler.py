@@ -37,10 +37,6 @@ def build_message_list_ollama(chat_history) -> list:
     return messages
 
 async def chat_with_ollama(messages, model, temperature=0.5, max_tokens=100) -> str:
-    # Check if Ollama is available
-    if check_server_status() == False:
-        return -1, -1, "assistant", "Ollama is not available. Please try again later."
-    
     jsonData = {
             "model": model,
             "messages": messages,
