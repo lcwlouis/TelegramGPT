@@ -106,7 +106,7 @@ async def option_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     
     if option == "show_chats":
         from chat.chatMenu import start
-        await start(update, context)
+        await start(update, context, False)
         return ConversationHandler.END
     elif option == "model":
         await query.edit_message_text(
