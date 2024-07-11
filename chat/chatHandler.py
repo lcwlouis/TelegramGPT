@@ -313,8 +313,10 @@ async def handle_chat_completion(provider, model, temperature, max_tokens, n, st
     total_input_tokens, total_output_tokens = row
 
     # Update token counts in database
-    total_input_tokens += input_tokens
-    total_output_tokens += output_tokens
+    if input_tokens is not None:
+        total_input_tokens += input_tokens
+    if output_tokens is not None:
+        total_output_tokens += output_tokens
     c.execute('UPDATE chats SET input_tokens = ?, output_tokens = ? WHERE id = ?', 
             (total_input_tokens, total_output_tokens, chat_id))
     conn_chats.commit()
