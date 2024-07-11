@@ -32,7 +32,7 @@ c = conn_chats.cursor()
 # Define start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE, command_start: bool = True) -> int:
     from helpers.mainHelper import cleanup
-    temp = []
+    temp = context.user_data.get('start_cmd_ids', [])
     if command_start:
         temp.append(update.message.message_id)
     else:
@@ -41,6 +41,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE, command_star
     context.user_data.clear()
     context.user_data['chat_page'] = 0  # Reset the page to 0
     context.user_data.setdefault('start_cmd_ids', []).extend(temp)
+    print(context.user_data)
     return await show_chats(update, context)
 
 # Chats Menu 
@@ -60,6 +61,21 @@ async def show_chats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     c.execute("SELECT COUNT(*) FROM chats WHERE user_id = ?", (user_id,))
     total_chats = c.fetchone()[0]
 
+    # Delete the last used chat when sorted by largest message id when total_chats > 30
+    if total_chats > 20:
+        c.execute("SELECT id FROM chats WHERE user_id = ? ORDER BY (SELECT MAX(message_id) FROM chat_history WHERE chat_id = chats.id) ASC LIMIT 1",
+                (user_id,))
+        chat_id = c.fetchone()[0]
+        print(f"Deleting chat {chat_id}")
+        # get chat title
+        c.execute("SELECT chat_title FROM chats WHERE id = ?", (chat_id,))
+        chat_title = c.fetchone()[0]
+        print(f"Deleting chat {chat_title}...")
+        c.execute("DELETE FROM chats WHERE id = ?", (chat_id,))
+        c.execute("DELETE FROM chat_history WHERE chat_id = ?", (chat_id,))
+        conn_chats.commit()
+        total_chats -= 1
+
     # Calculate total pages
     total_pages = max(1, (total_chats - 1) // chats_per_page + 1)
 
@@ -67,8 +83,8 @@ async def show_chats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     page = max(0, min(page, total_pages - 1))
     context.user_data['chat_page'] = page
 
-    # Get chats for current page
-    c.execute("SELECT id, chat_title FROM chats WHERE user_id = ? ORDER BY id DESC LIMIT ? OFFSET ?", 
+    # Get chats for current page sorted by whichever has the largest message id in chat_history table
+    c.execute("SELECT id, chat_title FROM chats WHERE user_id = ? ORDER BY (SELECT MAX(message_id) FROM chat_history WHERE chat_id = chats.id) DESC LIMIT ? OFFSET ?", 
               (user_id, chats_per_page, page * chats_per_page))
     chats = c.fetchall()
 
