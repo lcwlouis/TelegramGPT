@@ -1,6 +1,5 @@
 import logging
 import os
-import asyncio
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes, ApplicationHandlerStop, ConversationHandler
@@ -68,21 +67,25 @@ async def admin_reset_user_settings(update: Update, context: ContextTypes.DEFAUL
 
 async def cleanup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # Delete all messages before the next message
-    if 'sent_messages' in context.user_data:
+    if context.user_data.get('sent_messages'):
         min_id = min(context.user_data['sent_messages'])
         max_id = max(context.user_data['sent_messages']) + 1
-        delete_message_tasks = [context.bot.delete_message(chat_id=update.effective_chat.id, message_id=message_id) for message_id in range(min_id, max_id)]
-        await asyncio.gather(*delete_message_tasks)
+        to_delete_list = [message_id for message_id in range(min_id, max_id)]
+        for i in range(0, len(to_delete_list), 100):
+            chunk = to_delete_list[i:i+100]
+            await context.bot.delete_messages(chat_id=update.effective_chat.id, message_ids=chunk)
         context.user_data['sent_messages'] = []
 
 async def exit_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # Send a new message telling the user to /start
     message = await context.bot.send_message(chat_id=update.effective_chat.id, text="Type /start to start again")
+    to_delete_start_cmd_list = context.user_data.get('start_cmd_ids', [])
+    # insert into context sent message list
+    context.user_data.setdefault('sent_messages', []).extend(to_delete_start_cmd_list)
     await cleanup(update, context)
-    #
+
     # Clear all user data
     context.user_data.clear()
-    # print(f"Sent message: {message.message_id}")
     context.user_data.setdefault('sent_messages', []).append(message.message_id)
     return ConversationHandler.END
 

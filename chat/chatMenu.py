@@ -3,6 +3,7 @@ import logging
 import os
 import base64
 import time
+import html
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
@@ -29,11 +30,17 @@ conn_chats = sqlite3.connect(DB_PATH)
 c = conn_chats.cursor()
 
 # Define start
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE, command_start: bool = True) -> int:
     from helpers.mainHelper import cleanup
+    temp = []
+    if command_start:
+        temp.append(update.message.message_id)
+    else:
+        temp = context.user_data.get('start_cmd_ids', [])
     await cleanup(update, context)
     context.user_data.clear()
     context.user_data['chat_page'] = 0  # Reset the page to 0
+    context.user_data.setdefault('start_cmd_ids', []).extend(temp)
     return await show_chats(update, context)
 
 # Chats Menu 
@@ -45,7 +52,7 @@ async def show_chats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     # Debounce mechanism
     current_time = time.time()
     last_update_time = context.user_data.get('last_update_time', 0)
-    if current_time - last_update_time < 0.5:  # 500ms debounce
+    if current_time - last_update_time < 2:  # 2000ms debounce
         return SELECTING_CHAT
     context.user_data['last_update_time'] = current_time
 
@@ -162,7 +169,7 @@ async def open_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
                         add_to_message_list = await query.message.reply_text(f"<u><b>You</b></u>: \n{message}", parse_mode=ParseMode.HTML)
                         context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
                     except Exception as e:
-                        add_to_message_list = await query.message.reply_text(f"Error formatting the message: \n{message}")
+                        add_to_message_list = await query.message.reply_text(f"<u><b>You</b></u><b>Error formatting the message: </b>\n{html.escape(message)}", parse_mode=ParseMode.HTML)
                         context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
                 if message_type == 'image_url':
                     try:
@@ -184,8 +191,8 @@ async def open_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
                             add_to_message_list = await query.message.reply_text(f"{header}{message_part}", parse_mode=ParseMode.HTML)
                             context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
                         except Exception as e:
-                            header = "Error formatting the message: \n" if i == 0 else ""
-                            add_to_message_list = await query.message.reply_text(f"{header}{message_part}")
+                            header = "<u><b>Universalis</b></u><b>Error formatting the message: </b>\n" if i == 0 else ""
+                            add_to_message_list = await query.message.reply_text(f"{header}{html.escape(message_part)}", parse_mode=ParseMode.HTML)
                             context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
                 if message_type == 'image_url':
                     try:
