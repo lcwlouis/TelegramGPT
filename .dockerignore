@@ -5,3 +5,4 @@ __pycache__
 *.pyd
 data
 _old_sys_prompts
+.env
