@@ -49,6 +49,7 @@ from helpers.mainHelper import (
     admin_add_user,
     admin_reset_user_settings,
 )
+from flask import Flask, request
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -140,7 +141,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
                 )
 
 # Main
-def main() -> None:
+def create_application() -> None:
     persistence = PicklePersistence(filepath=PICKLE_PATH)
     application = ApplicationBuilder().token(TOKEN).persistence(persistence).build()
     # application = ApplicationBuilder().token(TOKEN).build()
@@ -203,9 +204,34 @@ def main() -> None:
     # Add error handler
     application.add_error_handler(error_handler)
     
-    # Start the bot
-    print("Bot polling, will exit on Ctrl+C and continue posting updates if there are warnings or errors")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    return application
+
+app = Flask(__name__)
+
+import http
+@app.route('/')
+def webhook():
+    update = Update.de_json(request.get_json(force=True), application.bot)
+    application.process_update(update)
+    return "", http.HTTPStatus.NO_CONTENT
+
+
+
+def main() -> None:
+    global application
+    application = create_application()
+
+    # if os.getenv('ENVIRONMENT') == 'PROD':
+    # Cloud Run environment
+    port = int(os.getenv('PORT', 8080))
+    # Set the webhook
+    application.bot.set_webhook(f'https://{os.getenv("CLOUD_RUN_URL")}/{TOKEN}')
+    # Start Flask server
+    app.run(host='0.0.0.0', port=port)
+    # else:
+    #     # Local development environment
+    #     print("Bot polling, will exit on Ctrl+C and continue posting updates if there are warnings or errors")
+    #     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
     # On Ctrl+C exit
     chatHandler_kill_connection()
@@ -215,7 +241,5 @@ def main() -> None:
     user_kill_connection()
     print("Bot polling closed. Exiting...")
 
-
 if __name__ == '__main__':
     main()
-
