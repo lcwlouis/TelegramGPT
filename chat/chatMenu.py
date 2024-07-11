@@ -191,7 +191,7 @@ async def open_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
                             add_to_message_list = await query.message.reply_text(f"{header}{message_part}", parse_mode=ParseMode.HTML)
                             context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
                         except Exception as e:
-                            header = "<u><b>Universalis</b></u><b>Error formatting the message: </b>\n" if i == 0 else ""
+                            header = "<u><b>Universalis</b>\n</u><b>Error formatting the message: </b>\n" if i == 0 else ""
                             add_to_message_list = await query.message.reply_text(f"{header}{html.escape(message_part)}", parse_mode=ParseMode.HTML)
                             context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
                 if message_type == 'image_url':
