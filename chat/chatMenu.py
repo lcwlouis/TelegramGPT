@@ -126,7 +126,9 @@ async def show_chats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             await query.message.edit_text(text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
         return SELECTING_CHAT
     except:
+        from helpers.mainHelper import cleanup
         # This is not a callback query, so send a new message
+        await cleanup(update, context)
         message = await context.bot.send_message(chat_id=update.effective_chat.id, text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
         context.user_data.setdefault('sent_messages', []).append(message.message_id)
         return SELECTING_CHAT
