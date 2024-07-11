@@ -1,4 +1,5 @@
 import logging
+import time
 import os
 import traceback, html, json
 from typing import Final
@@ -30,6 +31,8 @@ from chat.chatMenu import (
     show_help,
     prev_page,
     next_page,
+    end_chat,
+    del_chat,
     no_page,
     kill_connection as chatMenu_kill_connection
 )
@@ -79,24 +82,46 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 
     # traceback.format_exception returns the usual python message about an exception, but as a
     # list of strings rather than a single string, so we have to join them together.
-    tb_list = traceback.format_exception(None, context.error, context.error.__traceback__)
+    tb_list = traceback.format_exception(None, context.error, context.error.__traceback__)[:5]
     tb_string = "".join(tb_list)
 
     # Build the message with some markup and additional information about what happened.
     # You might need to add some logic to deal with messages longer than the 4096 character limit.
     update_str = update.to_dict() if isinstance(update, Update) else str(update)
     message = (
-        "An exception was raised while handling an update\n"
+        "<b>An exception was raised while handling an update at time {time} </b>\n"
         f"<pre>update = {html.escape(json.dumps(update_str, indent=2, ensure_ascii=False))}"
         "</pre>\n\n"
         f"<pre>context.chat_data = {html.escape(str(context.chat_data))}</pre>\n\n"
         f"<pre>context.user_data = {html.escape(str(context.user_data))}</pre>\n\n"
+    )
+    message_traceback = (
+        f"<b>Traceback (most recent call last):</b>\n"
         f"<pre>{html.escape(tb_string)}</pre>"
+        f"<b>-----------End of traceback-----------</b>"
     )
 
     # Split the message if it's too long
     from helpers.chatHelper import smart_split
     parts = smart_split(message, 4096)
+    for part in parts:
+        # Finally, send the message
+        try:
+            await context.bot.send_message(
+                chat_id=ERROR_CHAT_ID, text=part, parse_mode=ParseMode.HTML
+            )
+        except Exception as e:
+            if 'Message is not modified' in str(e):
+                # If the message is not modified don't send anything
+                pass
+            else:
+                # undo html escape
+                part = html.unescape(part)
+                await context.bot.send_message(
+                    chat_id=ERROR_CHAT_ID, text=part
+                )
+
+    parts = smart_split(message_traceback, 4096)
     for part in parts:
         # Finally, send the message
         try:
@@ -125,7 +150,9 @@ def main() -> None:
     chat_menu_handler = ConversationHandler(
         entry_points=[
             CommandHandler("start", start), 
-            CommandHandler("help", show_help), 
+            CommandHandler("help", show_help),
+            CommandHandler("end", end_chat),
+            CommandHandler("delete", del_chat),
             CallbackQueryHandler(show_chats, pattern="^show_chats$"), 
             CallbackQueryHandler(create_new_chat, pattern="^create_new_chat$"),
             CallbackQueryHandler(open_chat, pattern="^open_chat_"),
@@ -137,7 +164,11 @@ def main() -> None:
             ],
         states=get_chat_handlers(),
         fallbacks=[CallbackQueryHandler(start, pattern="^start$")],
+        name="chat_menu",
+        allow_reentry=True,
         per_message=False,
+        block=True,
+        persistent=True
     )
     
     # Settings menu handler
@@ -145,7 +176,11 @@ def main() -> None:
         entry_points=[CallbackQueryHandler(settings, pattern="^settings$")],
         states=settings_menu_handler(),
         fallbacks=[CallbackQueryHandler(settings, pattern="^settings$")],
-        per_message=False
+        name="settings",
+        per_message=False,
+        allow_reentry=True,
+        block=True,
+        persistent=True
     )
     
     # Handle adding users by admin
