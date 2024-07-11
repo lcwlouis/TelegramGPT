@@ -85,8 +85,13 @@ def process_response_from_ollama(response) -> tuple:
     return input_tokens, output_tokens, role, message
 
 def check_server_status() -> bool:
-    res = requests.get(f'{OLLAMA_URL}/api')
-    if res.status_code == 200:
-        return True
-    else:
+    try:
+        res = requests.get(f'{OLLAMA_URL}', timeout=2.5)
+        if res.status_code == 200:
+            return True
+        else:
+            return False
+    except (requests.exceptions.Timeout, requests.exceptions.RequestException):
         return False
+
+print(check_server_status())
