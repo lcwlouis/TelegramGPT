@@ -2,6 +2,7 @@ import logging
 import sqlite3
 import os
 import base64
+import html
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler, MessageHandler, filters
@@ -331,31 +332,31 @@ async def handle_chat_completion(provider, model, temperature, max_tokens, n, st
             try:
                 await bot_message.edit_text(message_part, parse_mode=ParseMode.HTML)
             except Exception as e:
-                message = await bot_message.reply_text(f"Message unable to format properly: {message}")
+                message = await bot_message.reply_text(f"<b>Message unable to format properly: </b> {html.escape(message)}", parse_mode=ParseMode.HTML)
                 context.user_data.setdefault('sent_messages', []).append(message.message_id)
         else:
             try:
                 message = await bot_message.reply_text(message_part, parse_mode=ParseMode.HTML)
                 context.user_data.setdefault('sent_messages', []).append(message.message_id)
             except Exception as e:
-                message = await bot_message.reply_text(f"Message unable to format properly: {message}")
+                message = await bot_message.reply_text(f"<b>Message unable to format properly: </b> {html.escape(message)}", parse_mode=ParseMode.HTML)
                 context.user_data.setdefault('sent_messages', []).append(message.message_id)
         return CHATTING
 
 
 def get_chat_handlers():
     from helpers.mainHelper import exit_menu, handle_unsupported_command, handle_unsupported_message
-    from chat.chatMenu import create_new_chat, open_chat, show_help, start, del_chat, end_chat, prev_page, next_page, no_page
+    from chat.chatMenu import create_new_chat, open_chat, show_help, start, del_chat, end_chat, prev_page, next_page, no_page, show_chats
     return {
         SELECTING_CHAT: [
             CallbackQueryHandler(create_new_chat, pattern="^create_new_chat$"),
             CallbackQueryHandler(open_chat, pattern="^open_chat_"),
             CallbackQueryHandler(show_help, pattern="^help$"),
             CallbackQueryHandler(exit_menu, pattern="^exit_menu$"),
-            CallbackQueryHandler(prev_page, pattern="^prev_page$"),
-            CallbackQueryHandler(next_page, pattern="^next_page$"),
+            CallbackQueryHandler(prev_page, pattern="^prev_page$", block=False),
+            CallbackQueryHandler(next_page, pattern="^next_page$", block=False),
             CallbackQueryHandler(no_page, pattern="^no_page$"),
-            CommandHandler("start", start),
+            CommandHandler("start", start,),
             CommandHandler("help", show_help),
             # Handle unsupported commands
             MessageHandler(filters.COMMAND, handle_unsupported_command),
@@ -378,7 +379,7 @@ def get_chat_handlers():
             MessageHandler(filters.COMMAND, handle_unsupported_command),
         ],
         RETURN_TO_MENU: [
-            CallbackQueryHandler(start, pattern="^show_chats$"),
+            CallbackQueryHandler(show_chats, pattern="^show_chats$"),
             CommandHandler("start", start),
             # Handle unsupported commands
             MessageHandler(filters.COMMAND, handle_unsupported_command),
