@@ -3,6 +3,7 @@ import sqlite3
 import os
 import base64
 import html
+import telegramify_markdown
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler, MessageHandler, filters
@@ -18,6 +19,8 @@ from helpers.chatHelper import smart_split
 
 # Define conversation states
 SELECTING_CHAT, CREATE_NEW_CHAT, CHATTING, RETURN_TO_MENU = range(4)
+
+BOT_NAME = os.getenv('BOT_NAME')
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
@@ -128,6 +131,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_gen_image(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     chat_id = context.user_data.get('current_chat_id')
+    chat_title = context.user_data.get('current_chat_title')
     # Extract prompt from behind /image command
     if len(update.message.text.split(' ', 1)) == 1:
         message = await update.message.reply_text("Please enter an image prompt.")
@@ -148,9 +152,10 @@ async def handle_gen_image(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                 (chat_id, stored_message, 'user'))
         conn_chats.commit()
     except Exception as e:
+        error_msg = telegramify_markdown.markdownify(f"__{BOT_NAME}__ | Error \nAn error occurred while generating the image: {e}. The image prompt will not be saved.", max_line_length=None, normalize_whitespace=False)
         message_id = await update.message.reply_text(
-            f"<u><b>Universalis</b></u> \nAn error occurred while generating the image: {e}. The image prompt will not be saved.", 
-            parse_mode=ParseMode.HTML
+            error_msg, 
+            parse_mode=ParseMode.MARKDOWN_V2
             )
         logger.error(f"An error occurred while generating the image: {e}.")
         context.user_data.setdefault('sent_messages', []).append(message_id.message_id)
@@ -166,9 +171,11 @@ async def handle_gen_image(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         img_bytes = base64.b64decode(img_base64)
 
         # Send the image
-        message = await update.message.reply_photo(photo=img_bytes, caption=f"<u><b>Universalis</b></u>: \n", parse_mode=ParseMode.HTML)
+        caption = telegramify_markdown.markdownify(f"__{BOT_NAME}__ | Chat: {chat_title}", max_line_length=None, normalize_whitespace=False)
+        message = await update.message.reply_photo(photo=img_bytes, caption=caption, parse_mode=ParseMode.MARKDOWN_V2)
     else:
-        message = await update.message.reply_text("<u><b>Universalis</b></u> \nAn error occurred while generating the image.", parse_mode=ParseMode.HTML)
+        error_msg = telegramify_markdown.markdownify(f"__{BOT_NAME}__ | Error\nAn error occurred while generating the image.", max_line_length=None, normalize_whitespace=False)
+        message = await update.message.reply_text(error_msg, parse_mode=ParseMode.MARKDOWN_V2)
     
     context.user_data.setdefault('sent_messages', []).append(message.message_id)
 
@@ -296,7 +303,9 @@ async def handle_chat_completion(provider, model, temperature, max_tokens, n, st
         try:
             input_tokens, output_tokens, role, message = await gpt.chat_with_gpt(messages, model=model, temperature=temperature, max_tokens=max_tokens, n=n)
         except Exception as e:
-            await bot_message.edit_text(f"<u><b>Universalis</b></u>: \nAn error occurred while talking to GPT: {e}", parse_mode=ParseMode.HTML)
+            error_msg = f"__{BOT_NAME}__ | Error \nAn error occurred while talking to GPT: {e}"
+            error_msg = telegramify_markdown.markdownify(error_msg, max_line_length=None, normalize_whitespace=False)
+            await bot_message.edit_text(error_msg, parse_mode=ParseMode.MARKDOWN_V2)
             return CHATTING
     elif provider == 'claude':
         messages = claude.build_message_list_claude(chat_history)
@@ -305,7 +314,9 @@ async def handle_chat_completion(provider, model, temperature, max_tokens, n, st
         try:
             input_tokens, output_tokens, role, message = await claude.chat_with_claude(messages, model=model, temperature=temperature, max_tokens=max_tokens, system=start_prompt)
         except Exception as e:
-            await bot_message.edit_text(f"<u><b>Universalis</b></u>: \nAn error occurred while talking to Claude: {e}", parse_mode=ParseMode.HTML)
+            error_msg = f"__{BOT_NAME}__ | Error \nAn error occurred while talking to Claude: {e}"
+            error_msg = telegramify_markdown.markdownify(error_msg, max_line_length=None, normalize_whitespace=False)
+            await bot_message.edit_text(error_msg, parse_mode=ParseMode.MARKDOWN_V2)
             return CHATTING
     elif provider == 'google':
         # Add user message to chat history for gemini only
@@ -315,13 +326,16 @@ async def handle_chat_completion(provider, model, temperature, max_tokens, n, st
         try:
             input_tokens, output_tokens, role, message = await gemini.chat_with_gemini(model=model, temperature=temperature, max_tokens=max_tokens, message_history=chat_history, system=start_prompt)
         except Exception as e:
-            await bot_message.edit_text(f"<u><b>Universalis</b></u>: \nAn error occurred while talking to Gemini: {e}", parse_mode=ParseMode.HTML)
+            error_msg = f"__{BOT_NAME}__ | Error \nAn error occurred while talking to Gemini: {e}"
+            error_msg = telegramify_markdown.markdownify(error_msg, max_line_length=None, normalize_whitespace=False)
+            await bot_message.edit_text(error_msg, parse_mode=ParseMode.MARKDOWN_V2)
             return CHATTING
     elif provider == 'ollama':
         # Check if Ollama is available
         from providers.ollamaHandler import check_server_status
         if not check_server_status():
-            await bot_message.edit_text("<u><b>Universalis</b></u>: \nSorry Ollama is currently unavailable. \nPlease /end and change model in settings.", parse_mode=ParseMode.HTML)
+            message = telegramify_markdown.markdownify(f"__{BOT_NAME}__ | Error \nSorry Ollama is currently unavailable. \nPlease /end and change model in settings.", max_line_length=None, normalize_whitespace=False)
+            await bot_message.edit_text(message, parse_mode=ParseMode.MARKDOWN_V2)
             return CHATTING
 
         chat_history = ollama.build_message_list_ollama(chat_history)
@@ -330,7 +344,9 @@ async def handle_chat_completion(provider, model, temperature, max_tokens, n, st
         try:
             input_tokens, output_tokens, role, message = await ollama.chat_with_ollama(chat_history, model=model, temperature=temperature, max_tokens=max_tokens)
         except Exception as e:
-            await bot_message.edit_text(f"<u><b>Universalis</b></u>: \nAn error occurred while talking to Ollama: {e}", parse_mode=ParseMode.HTML)
+            error_msg = f"__{BOT_NAME}__ | Error\nAn error occurred while talking to {provider.title()}: {e}"
+            error_msg = telegramify_markdown.markdownify(error_msg, max_line_length=None, normalize_whitespace=False)
+            await bot_message.edit_text(error_msg, parse_mode=ParseMode.MARKDOWN_V2)
             return CHATTING
 
     # Save AI response to database
@@ -339,9 +355,9 @@ async def handle_chat_completion(provider, model, temperature, max_tokens, n, st
     conn_chats.commit()
     
     # Get current token counts from database
-    c.execute('SELECT input_tokens, output_tokens FROM chats WHERE id = ?', (chat_id,))
+    c.execute('SELECT input_tokens, output_tokens, chat_title FROM chats WHERE id = ?', (chat_id,))
     row = c.fetchone()
-    total_input_tokens, total_output_tokens = row
+    total_input_tokens, total_output_tokens, chat_title = row
 
     # Update token counts in database
     if input_tokens is not None:
@@ -352,30 +368,32 @@ async def handle_chat_completion(provider, model, temperature, max_tokens, n, st
             (total_input_tokens, total_output_tokens, chat_id))
     conn_chats.commit()
 
-    reply_heading = "<u><b>Universalis</b></u>: \n"
+    reply_heading = telegramify_markdown.markdownify(f"__{BOT_NAME}__ | Chat: \n{chat_title}\n━━━━━━━━━━\n", max_line_length=None, normalize_whitespace=False)
     reply_end = (
-        f"\n\nInput: <code>{input_tokens}</code> tokens | Output: <code>{output_tokens}</code> tokens\n"
-        f"Total input used: <code>{total_input_tokens}</code> tokens | Total output used: <code>{total_output_tokens}</code> tokens\n"
+        f"\n\nInput: `{input_tokens}` tokens | Output: `{output_tokens}` tokens\n"
+        f"Total input used: `{total_input_tokens}` tokens | Total output used: `{total_output_tokens}` tokens\n"
     )
+    reply_end = telegramify_markdown.markdownify(reply_end, max_line_length=None, normalize_whitespace=False)
     message_parts = smart_split(message)
     message_parts[0] = reply_heading + message_parts[0]
     message_parts[-1] = message_parts[-1] + reply_end
     for i, message_part in enumerate(message_parts):
         if i == 0:
             try:
-                await bot_message.edit_text(message_part, parse_mode=ParseMode.HTML)
+                await bot_message.edit_text(message_part, parse_mode=ParseMode.MARKDOWN_V2)
             except Exception as e:
+                logger.error(f"An error occurred while editing the message: {e}.")
                 message = await bot_message.reply_text(f"<b>Message unable to format properly: </b> {html.escape(message)}", parse_mode=ParseMode.HTML)
                 context.user_data.setdefault('sent_messages', []).append(message.message_id)
         else:
             try:
-                message = await bot_message.reply_text(message_part, parse_mode=ParseMode.HTML)
+                message = await bot_message.reply_text(message_part, parse_mode=ParseMode.MARKDOWN_V2)
                 context.user_data.setdefault('sent_messages', []).append(message.message_id)
             except Exception as e:
+                logger.error(f"An error occurred while replying to the message: {e}.")
                 message = await bot_message.reply_text(f"<b>Message unable to format properly: </b> {html.escape(message)}", parse_mode=ParseMode.HTML)
                 context.user_data.setdefault('sent_messages', []).append(message.message_id)
         return CHATTING
-
 
 def get_chat_handlers():
     from helpers.mainHelper import exit_menu, handle_unsupported_command, handle_unsupported_message

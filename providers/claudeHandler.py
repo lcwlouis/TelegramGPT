@@ -1,6 +1,7 @@
 import os
 import re
 import logging
+import telegramify_markdown as tm
 from typing import Final
 from anthropic import AsyncAnthropic
 from helpers.dateHelper import get_current_date, get_current_weekday
@@ -96,9 +97,9 @@ def process_response_from_claude(response) -> tuple:
     input_tokens = response.usage.input_tokens
     output_tokens = response.usage.output_tokens
     role = response.role
-    message = response.content[0].text
-    # To manage the case where GPT still outputs unwanted tags that 
-    # may cause telegram to fail to format the message properly
-    message = re.sub(r'<(a|article|p|br|li|sup|sub|abbr|small|ul|/a|/article|/p|/li|/sup|/sub|/abbr|/small|/ul)>', '', message)
-    message = message.replace('<h1>', '<b><u>').replace('</h1>', '</u></b>').replace('<h2>', '<b>').replace('</h2>', '</b>').replace('<h3>', '<u>').replace('</h3>', '</u>').replace('<h4>', '<i>').replace('</h4>', '</i>').replace('<h5>', '').replace('</h5>', '').replace('<h6>', '').replace('</h6>', '').replace('<big>', '<b>').replace('</big>', '</b>')
+    message = tm.markdownify(
+        response.content[0].text,
+        max_line_length=None,
+        normalize_whitespace=False,
+    )
     return input_tokens, output_tokens, role, message

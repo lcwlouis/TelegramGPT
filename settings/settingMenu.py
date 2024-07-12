@@ -1,3 +1,5 @@
+import telegramify_markdown as tm
+import os
 from typing import Final
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
@@ -12,6 +14,8 @@ COLUMNS: Final = 2
 
 # Define conversation states
 SELECTING_OPTION, SELECTING_MODEL, ENTERING_TEMPERATURE, ENTERING_MAX_TOKENS, ENTERING_N, ENTERING_START_PROMPT, SELECT_RESET, SELECTING_PROVIDER, SELECTING_IMAGE_SETTINGS = range(4, 13)
+
+BOT_NAME = os.getenv('BOT_NAME')
 
 PROVIDERS: Final = [
     "openai",
@@ -35,23 +39,26 @@ def settings_keyboard() -> InlineKeyboardMarkup:
 async def show_current_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     settings = context.user_data['settings']
     keyboard = settings_keyboard()
-    message_text = (
-        f"<b><u>Universalis</u></b>\n\n"
-        f"<b>Current settings:</b>\n"
-        f"------------------\n"
-        f"<b>Provider:</b> {settings[0]}\n"
-        f"<b>Model:</b> {settings[1]}\n"
-        f"<b>Temperature:</b> {settings[2]}\n"
-        f"<b>Max tokens:</b> {settings[3]}\n"
-        f"<b>N:</b> {settings[4]}\n"
-        f"<b>Starting Prompt:</b> <blockquote> Select Starting Prompt to see the prompt </blockquote>\n"
-        f"<b>Image Settings:</b> <blockquote> Select Image Settings to see the image settings</blockquote>\n"
+    message_text = tm.markdownify((
+        f"__{BOT_NAME}__ | Settings\n"
+        f"━━━━━━━━━━\n"
+        f"*Provider:* `{settings[0]}`\n"
+        f"*Model:* `{settings[1]}`\n"
+        f"*Temperature:* `{settings[2]}`\n"
+        f"*Max tokens:* `{settings[3]}`\n"
+        f"*N:* `{settings[4]}`\n"
+        "*Starting Prompt:* \n"
+        "> Select Starting Prompt to see the prompt\n\n"
+        "*Image Settings:* \n"
+        "> Select Image Settings to see the image settings"),
+        max_line_length=None,
+        normalize_whitespace=False
     )
     
     if update.callback_query:
-        await update.callback_query.edit_message_text(message_text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
+        await update.callback_query.edit_message_text(message_text, reply_markup=keyboard, parse_mode=ParseMode.MARKDOWN_V2)
     else:
-        message = await update.message.reply_text(message_text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
+        message = await update.message.reply_text(message_text, reply_markup=keyboard, parse_mode=ParseMode.MARKDOWN_V2)
         context.user_data.setdefault('sent_messages', []).append(message.message_id)
 
 async def back_to_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:

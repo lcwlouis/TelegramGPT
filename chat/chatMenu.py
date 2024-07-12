@@ -4,6 +4,7 @@ import os
 import base64
 import time
 import html
+import telegramify_markdown as tm
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
@@ -13,6 +14,8 @@ SELECTING_CHAT, CREATE_NEW_CHAT, CHATTING, RETURN_TO_MENU = range(4)
 
 # Define max chats per page
 MAX_CHATS_PER_PAGE = 5
+
+BOT_NAME = os.getenv('BOT_NAME')
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
@@ -115,47 +118,40 @@ async def show_chats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     reply_markup = InlineKeyboardMarkup(keyboard)
     
+    message_text = (
+        f"__{BOT_NAME}__ | Home\n"
+        "━━━━━━━━━━\n"
+        f"*Hello {update.effective_user.first_name}*! I am here to answer your questions about anything. \n\n"
+    )
     if total_pages > 1:
-        message_text = (
-            f"<u><b>Universalis</b></u> \n"
-            f"<b>Hello {update.effective_user.first_name}</b>! I am here to answer your questions about anything. \n\n"
-            f"Page {page + 1} of {total_pages}\n"
-            f"<u>Select a chat or create a new one</u>:\n"
-        )
+        message_text += (f"Page {page + 1} of {total_pages}\n"
+                        f"__Select a chat or create a new one__:\n")
     elif len(chats) > 0:
-        message_text = (
-            f"<u><b>Universalis</b></u> \n"
-            f"<b>Hello {update.effective_user.first_name}</b>! I am here to answer your questions about anything. \n\n"
-            f"<u>Select a chat or create a new one</u>:\n"
-        )
+        message_text += f"__Select a chat or create a new one__:\n"
     else:
-        message_text = (
-            f"<u><b>Universalis</b></u> \n"
-            f"<b>Hello {update.effective_user.first_name}</b>! I am here to answer your questions about anything. \n\n"
-            f"<u>Create a new one</u>:\n"
-        )
+        message_text += f"__Create a new one__:\n"
     
+    # Markdownify
+    message_text = tm.markdownify(message_text, max_line_length=None, normalize_whitespace=False)
     try:
         query = update.callback_query
         # await query.answer()  # Always answer the callback query
         if query.message.text != message_text or query.message.reply_markup != reply_markup:
-            await query.message.edit_text(text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+            await query.message.edit_text(text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN_V2)
         return SELECTING_CHAT
     except:
         from helpers.mainHelper import cleanup
         # This is not a callback query, so send a new message
         await cleanup(update, context)
-        message = await context.bot.send_message(chat_id=update.effective_chat.id, text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+        message = await context.bot.send_message(chat_id=update.effective_chat.id, text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN_V2)
         context.user_data.setdefault('sent_messages', []).append(message.message_id)
         return SELECTING_CHAT
-    
-    
+
 async def create_new_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.callback_query.answer()
     await update.callback_query.edit_message_text(
-        text=
-            "<u>How can Universalis help you today?</u> \n\n",
-        parse_mode=ParseMode.HTML
+        text=tm.markdownify(f"__{BOT_NAME}__ | Chat\n ━━━━━━━━━━\nHow can I help you today?", max_line_length=None, normalize_whitespace=False),
+        parse_mode=ParseMode.MARKDOWN_V2
     )
     return CREATE_NEW_CHAT
 
@@ -170,7 +166,11 @@ async def open_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['current_chat_title'] = chat_title
     
     await query.answer()
-    await query.edit_message_text(f"You are now chatting in: {chat_title}! You can save and exit using /end or /delete to delete the chat.")
+    await query.edit_message_text(tm.markdownify((f"__{BOT_NAME}__ | Chat: {chat_title}"),
+                                                max_line_length=None, 
+                                                normalize_whitespace=False), 
+                                                parse_mode=ParseMode.MARKDOWN_V2
+                                                )
     
     # Print the chat history if there is any
     c.execute("SELECT type, message, role FROM chat_history WHERE chat_id = ?", (chat_id,))
@@ -184,45 +184,63 @@ async def open_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             if role == 'user':
                 if message_type == 'text':
                     try:
-                        add_to_message_list = await query.message.reply_text(f"<u><b>You</b></u>: \n{message}", parse_mode=ParseMode.HTML)
+                        add_to_message_list = await query.message.reply_text(
+                            tm.markdownify(f"__You__\n{message}", max_line_length=None, normalize_whitespace=False), 
+                            parse_mode=ParseMode.MARKDOWN_V2
+                            )
                         context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
                     except Exception as e:
-                        add_to_message_list = await query.message.reply_text(f"<u><b>You</b></u><b>Error formatting the message: </b>\n{html.escape(message)}", parse_mode=ParseMode.HTML)
+                        logger.error(f"An error occurred while formatting a user message while opening a chat: {e}.")
+                        add_to_message_list = await query.message.reply_text(f"<b>You</b>\n<b>Error formatting the message: </b>\n{html.escape(message)}", parse_mode=ParseMode.HTML)
                         context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
                 if message_type == 'image_url':
                     try:
                         decoded_bytes = base64.b64decode(message)
-                        add_to_message_list = await query.message.reply_photo(decoded_bytes, caption=f"<u><b>You</b></u>: \n", parse_mode=ParseMode.HTML)
+                        add_to_message_list = await query.message.reply_photo(
+                            decoded_bytes, 
+                            caption=tm.markdownify(f"__You__ | Chat: \n{chat_title}\n", max_line_length=None, normalize_whitespace=False), 
+                            parse_mode=ParseMode.MARKDOWN_V2
+                            )
                         context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
                     except Exception as e:
+                        logger.error(f"An error occurred while sending a user image while opening a chat: {e}.")
                         add_to_message_list = await query.message.reply_text(f"Error sending the image")
                         context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
-                # add_to_message_list = await query.message.reply_text(f"<b>You</b>: \n{message}", parse_mode=ParseMode.HTML)
-                # context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
             elif role == 'assistant':
                 if message_type == 'text':
                     from helpers.chatHelper import smart_split
                     messages = smart_split(message)
                     for i, message_part in enumerate(messages):
                         try:
-                            header = "<u><b>Universalis</b></u>: \n" if i == 0 else ""
-                            add_to_message_list = await query.message.reply_text(f"{header}{message_part}", parse_mode=ParseMode.HTML)
+                            header = f"__{BOT_NAME}__\n" if i == 0 else ""
+                            add_to_message_list = await query.message.reply_text(
+                                tm.markdownify(f"{header}{message_part}", max_line_length=None, normalize_whitespace=False), 
+                                parse_mode=ParseMode.MARKDOWN_V2
+                                )
                             context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
                         except Exception as e:
-                            header = "<u><b>Universalis</b>\n</u><b>Error formatting the message: </b>\n" if i == 0 else ""
+                            logger.error(f"An error occurred while formatting a assistant message while opening a chat: {e}.")
+                            header = f"<b>__{BOT_NAME}__</b>\n<b>Error formatting the message: </b>\n" if i == 0 else ""
                             add_to_message_list = await query.message.reply_text(f"{header}{html.escape(message_part)}", parse_mode=ParseMode.HTML)
                             context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
                 if message_type == 'image_url':
                     try:
                         decoded_bytes = base64.b64decode(message)
-                        add_to_message_list = await query.message.reply_photo(decoded_bytes, caption=f"<u><b>Universalis</b></u>: \n", parse_mode=ParseMode.HTML)
+                        add_to_message_list = await query.message.reply_photo(
+                            decoded_bytes, 
+                            caption=tm.markdownify(f"__{BOT_NAME}__", max_line_length=None, normalize_whitespace=False), 
+                            parse_mode=ParseMode.MARKDOWN_V2
+                            )
                         context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
                     except Exception as e:
                         add_to_message_list = await query.message.reply_text(f"Error sending the image")
                         context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
             else:
                 pass
-        add_to_message_list = await query.message.reply_text(f"Continue messaging or /end to safely exit or /delete to delete this conversation. \nCurrent usage of tokens(I/O): <code>{input_tokens}</code> / <code>{output_tokens}</code>", parse_mode=ParseMode.HTML)
+        add_to_message_list = await query.message.reply_text(
+            tm.markdownify(f"Continue messaging or */end* to safely exit or */delete* to delete this conversation. \nCurrent usage of tokens(I/O): `{input_tokens}` / `{output_tokens}`", max_line_length=None, normalize_whitespace=False), 
+            parse_mode=ParseMode.MARKDOWN_V2
+            )
         context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
     else:
         pass
@@ -293,24 +311,26 @@ async def show_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         InlineKeyboardButton("Start", callback_data="show_chats")
     ]
-    help_message = (
-        "<b><u>Universalis</u></b>\n"
+    help_message = tm.markdownify((
+        f"__{BOT_NAME}__ | Help\n"
+        "━━━━━━━━━━\n"
         "Here are the available commands:\n"
         "/start - Brings you to starting menu\n"
         "/help - Brings you here.\n"
         "/image [prompt] - Generates an image (Only use in a Conversation)\n"
         "/end - Ends the current conversation (Only use in a Conversation)\n"
         "/delete - Deletes the current conversation (Only use in a Conversation)\n"
-        )
+        ), max_line_length=None, normalize_whitespace=False)
+    
     if update.callback_query:
         await update.callback_query.answer()
-        await update.callback_query.edit_message_text(help_message, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup([keyboard]))
+        await update.callback_query.edit_message_text(help_message, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=InlineKeyboardMarkup([keyboard]))
         return RETURN_TO_MENU
     else:
-        message = await update.message.reply_text(help_message, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup([keyboard]))
+        message = await update.message.reply_text(help_message, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=InlineKeyboardMarkup([keyboard]))
         context.user_data.setdefault('sent_messages', []).append(message.message_id)
         return RETURN_TO_MENU
-    
+
 def kill_connection():
     conn_chats.close()
     print("chatMenu DB Connection Closed")

@@ -2,6 +2,7 @@ import os
 import re
 import logging
 import requests
+import telegramify_markdown as tm
 from google.generativeai.types import HarmBlockThreshold, HarmCategory
 import google.generativeai as gemini
 
@@ -90,11 +91,15 @@ def process_response_from_gemini(response) -> tuple:
     input_tokens = response.usage_metadata.prompt_token_count
     output_tokens = response.usage_metadata.candidates_token_count
     role = "assistant" if response.candidates[0].content.role == "model" else response.candidates[0].content.role
-    message = response.text
+    message = tm.markdownify(
+        response.text,
+        max_line_length=None,
+        normalize_whitespace=False,
+    )
     # To manage the case where GPT still outputs unwanted tags that 
     # may cause telegram to fail to format the message properly
-    message = re.sub(r'<(a|article|p|br|li|sup|sub|abbr|small|ul|/a|/article|/p|/li|/sup|/sub|/abbr|/small|/ul)>', '', message)
-    message = message.replace('<h1>', '<b><u>').replace('</h1>', '</u></b>').replace('<h2>', '<b>').replace('</h2>', '</b>').replace('<h3>', '<u>').replace('</h3>', '</u>').replace('<h4>', '<i>').replace('</h4>', '</i>').replace('<h5>', '').replace('</h5>', '').replace('<h6>', '').replace('</h6>', '').replace('<big>', '<b>').replace('</big>', '</b>')
+    # message = re.sub(r'<(a|article|p|br|li|sup|sub|abbr|small|ul|/a|/article|/p|/li|/sup|/sub|/abbr|/small|/ul)>', '', message)
+    # message = message.replace('<h1>', '<b><u>').replace('</h1>', '</u></b>').replace('<h2>', '<b>').replace('</h2>', '</b>').replace('<h3>', '<u>').replace('</h3>', '</u>').replace('<h4>', '<i>').replace('</h4>', '</i>').replace('<h5>', '').replace('</h5>', '').replace('<h6>', '').replace('</h6>', '').replace('<big>', '<b>').replace('</big>', '</b>')
     return input_tokens, output_tokens, role, message
 
 

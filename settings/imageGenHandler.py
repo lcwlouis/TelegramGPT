@@ -1,5 +1,6 @@
 import sqlite3
 import os
+import telegramify_markdown as tm
 from typing import Final
 from telegram import Update
 from telegram.constants import ParseMode
@@ -9,6 +10,8 @@ import settings.settingMenu as settingMenu
 
 SELECTING_IMAGE_SETTINGS, SELECTING_IMAGE_MODEL, SELECTING_IMAGE_SIZE = range(12,15)
 SELECTING_OPTION = 4
+
+BOT_NAME = os.getenv('BOT_NAME')
 
 # DEFINE LIST OF MODELS, SIZES
 IMAGE_MODELS: Final = [
@@ -52,15 +55,22 @@ async def image_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     _, model, size = get_image_settings(user_id)
 
     context.user_data['image_settings'] = [model, size]
+    current_image_gen_settings_message = tm.markdownify((f"__{BOT_NAME}__ | Image Gen Settings\n"
+                                                        f"━━━━━━━━━━\n"
+                                                        f"*Model:* {model}\n"
+                                                        f"*Image Size:* {size}"), 
+                                                        max_line_length=None, 
+                                                        normalize_whitespace=False
+                                                        )
     if update.message is None:
         query = update.callback_query
-        await query.message.edit_text(f"<b><u>Current image gen settings:</u></b>\n<b>Model:</b> {model}\n<b>Image Size:</b> {size}", 
+        await query.message.edit_text(current_image_gen_settings_message, 
                                     reply_markup=settingMenu.image_settings_keyboard(), 
-                                    parse_mode=ParseMode.HTML)
+                                    parse_mode=ParseMode.MARKDOWN_V2)
         return SELECTING_IMAGE_SETTINGS
-    message = await update.message.reply_text(f"<b><u>Current image gen settings:</u></b>\n<b>Model:</b> {model}\n<b>Image Size:</b> {size}", 
+    message = await update.message.reply_text(current_image_gen_settings_message, 
                                             reply_markup=settingMenu.image_settings_keyboard(),
-                                            parse_mode=ParseMode.HTML)
+                                            parse_mode=ParseMode.MARKDOWN_V2)
     context.user_data.setdefault('sent_messages', []).append(message.message_id)
     return SELECTING_IMAGE_SETTINGS
 

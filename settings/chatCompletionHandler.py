@@ -1,5 +1,6 @@
 import sqlite3
 import os
+import telegramify_markdown as tm
 from typing import Final
 from telegram import Update
 from telegram.constants import ParseMode
@@ -15,6 +16,8 @@ from settings.imageGenHandler import (
 
 # Define conversation states
 SELECTING_OPTION, SELECTING_MODEL, ENTERING_TEMPERATURE, ENTERING_MAX_TOKENS, ENTERING_N, ENTERING_START_PROMPT, SELECT_RESET, SELECTING_PROVIDER, SELECTING_IMAGE_SETTINGS, SELECTING_IMAGE_MODEL, SELECTING_IMAGE_SIZE = range(4, 15)
+
+BOT_NAME = os.getenv('BOT_NAME')
 
 # Initialise path to db
 DB_DIR = os.getenv('DB_DIR')
@@ -65,36 +68,33 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     _, provider, model, temperature, max_tokens, n, start_prompt = result
 
     context.user_data['settings'] = [provider, model, temperature, max_tokens, n, start_prompt]
+    current_settings_message = tm.markdownify((
+        f"__{BOT_NAME}__ | Settings\n"
+        f"━━━━━━━━━━\n"
+        f"*Provider:* `{provider}`\n"
+        f"*Model:* `{model}`\n"
+        f"*Temperature:* `{temperature}`\n"
+        f"*Max tokens:* `{max_tokens}`\n"
+        f"*N:* `{n}`\n"
+        "*Starting Prompt:* \n"
+        "> Select Starting Prompt to see the prompt\n\n"
+        "*Image Settings:* \n"
+        "> Select Image Settings to see the image settings"),
+        max_line_length=None,
+        normalize_whitespace=False
+    )
     if update.message is None:
         query = update.callback_query
         await query.message.edit_text(
-            f"<b><u>Universalis</u></b>\n\n"
-            f"<b>Current settings:</b>\n"
-            f"------------------\n"
-            f"<b>Provider: </b>{provider}\n"
-            f"<b>Model:</b> {model}\n"
-            f"<b>Temperature:</b> {temperature}\n"
-            f"<b>Max tokens:</b> {max_tokens}\n"
-            f"<b>N:</b> {n}\n"
-            f"<b>Starting Prompt:</b> <blockquote> Select Starting Prompt to see the prompt </blockquote>\n"
-            f"<b>Image Settings:</b> <blockquote> Select Image Settings to see the image settings</blockquote>",
+            current_settings_message,
             reply_markup=settingMenu.settings_keyboard(),
-            parse_mode=ParseMode.HTML
+            parse_mode=ParseMode.MARKDOWN_V2
         )
         return SELECTING_OPTION
     message = await update.message.reply_text(
-        f"<b><u>Universalis</u></b>\n\n"
-        f"<b>Current settings:</b>\n"
-        f"------------------\n"
-        f"<b>Provider: </b>{provider}\n"
-        f"<b>Model:</b> {model}\n"
-        f"<b>Temperature:</b> {temperature}\n"
-        f"<b>Max tokens:</b> {max_tokens}\n"
-        f"<b>N:</b> {n}\n"
-        f"<b>Starting Prompt:</b> <blockquote> Select Starting Prompt to see the prompt </blockquote>\n"
-        f"<b>Image Settings:</b> <blockquote> Select Image Settings to see the image settings</blockquote>",
+        current_settings_message,
         reply_markup=settingMenu.settings_keyboard(),
-        parse_mode=ParseMode.HTML
+        parse_mode=ParseMode.MARKDOWN_V2
     )
     context.user_data.setdefault('sent_messages', []).append(message.message_id)
     return SELECTING_OPTION
@@ -110,43 +110,78 @@ async def option_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return ConversationHandler.END
     elif option == "model":
         await query.edit_message_text(
-            f"<b><u>Current GenAI Provider</u>: </b>{str(context.user_data['settings'][0])} \n"
-            f"<b><u>Current Model</u>: </b>{str(context.user_data['settings'][1])} \n\n"
-            f"Select a provider:", 
+            tm.markdownify((
+                f"__{BOT_NAME}__ | Choose Model Provider\n"
+                f"━━━━━━━━━━\n"
+                f"*Current Provider:* {str(context.user_data['settings'][0])} \n"
+                f"*Current Model:* {str(context.user_data['settings'][1])} \n\n"
+                f"Select a provider:"
+            ),
+            max_line_length=None,
+            normalize_whitespace=False
+            ), 
             reply_markup=settingMenu.provider_keyboard(), 
-            parse_mode=ParseMode.HTML)
+            parse_mode=ParseMode.MARKDOWN_V2)
         return SELECTING_PROVIDER
     elif option == "temperature":
         await query.edit_message_text(
-            f"<b><u>Current Temperature</u>: </b>{str(context.user_data['settings'][2])} \n\n"
-            f"Enter a new temperature value (0.0 to 1.0):", 
+            tm.markdownify((
+                f"__{BOT_NAME}__ | Set Temperature\n"
+                f"━━━━━━━━━━\n"
+                f"*Current Temperature:* {str(context.user_data['settings'][2])} \n\n"
+                f"Enter a new temperature value (0.0 to 1.0):"
+            ),
+            max_line_length=None,
+            normalize_whitespace=False
+            ), 
             reply_markup=settingMenu.back_keyboard(), 
-            parse_mode=ParseMode.HTML
+            parse_mode=ParseMode.MARKDOWN_V2
             )
         return ENTERING_TEMPERATURE
     elif option == "max_tokens":
         await query.edit_message_text(
-            f"<b><u>Current Max Tokens</u>: </b>{str(context.user_data['settings'][3])} \n\n"
-            f"Enter a new max tokens value (1 to 4096):", 
+            tm.markdownify((
+                f"__{BOT_NAME}__ | Set Max Tokens\n"
+                f"━━━━━━━━━━\n"
+                f"*Current Max Tokens:* {str(context.user_data['settings'][3])} \n\n"
+                f"Enter a new max tokens value (1 to 4096):"
+            ),
+            max_line_length=None,
+            normalize_whitespace=False
+            ), 
             reply_markup=settingMenu.back_keyboard(), 
-            parse_mode=ParseMode.HTML
+            parse_mode=ParseMode.MARKDOWN_V2
             )
         return ENTERING_MAX_TOKENS
     elif option == "n":
         await query.edit_message_text(
-            f"<b><u>Current n value</u>: </b>{str(context.user_data['settings'][4])} \n\n"
-            f"Enter a new N value (0.0 to 1.0):", 
+            tm.markdownify((
+                f"__{BOT_NAME}__ | Set N Value\n"
+                "━━━━━━━━━━\n"
+                f"*Current n value:* {str(context.user_data['settings'][4])} \n\n"
+                f"Enter a new N value (0.0 to 1.0):"
+            ),
+            max_line_length=None,
+            normalize_whitespace=False
+            ), 
             reply_markup=settingMenu.back_keyboard(), 
-            parse_mode=ParseMode.HTML
+            parse_mode=ParseMode.MARKDOWN_V2
             )
         return ENTERING_N
     elif option == "start_prompt":
         await query.edit_message_text(
-            f"[HTML Mode disabled to let you see the full prompt]\n"
-            f"Current Starting Prompt: \n\n"
-            f"{str(context.user_data['settings'][5])} \n\n"
-            f"Enter a new starting prompt:", 
-            reply_markup=settingMenu.back_keyboard()
+            tm.markdownify((
+                f"__{BOT_NAME}__ | Set Starting Prompt\n"
+                "━━━━━━━━━━\n"
+                f"*Current Starting Prompt:* \n\n"
+                f"```prompt\n{str(context.user_data['settings'][5])}\n``` \n\n"
+                f"Enter a new starting prompt:"
+            ),
+            max_line_length=None,
+            normalize_whitespace=False
+            ), 
+            reply_markup=settingMenu.back_keyboard(),
+            parse_mode=ParseMode.MARKDOWN_V2
             )
         return ENTERING_START_PROMPT
     elif option == "image_settings":
@@ -155,8 +190,7 @@ async def option_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return SELECTING_IMAGE_SETTINGS
     elif option == "reset_to_default":
         await query.edit_message_text(
-            "Resetting to default settings...", 
-            parse_mode=ParseMode.HTML
+            "Resetting to default settings..."
             )
         await reset_selected(update, context)
         return SELECTING_OPTION
@@ -205,11 +239,18 @@ async def provider_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     
     # move to model selection
     await query.edit_message_text(
-        f"<b><u>Current Provider</u>: </b>{context.user_data['settings'][0]} \n"
-        f"<b><u>Current Model</u>: </b>{context.user_data['settings'][1]} \n"
-        f"Select a model:", 
+        tm.markdownify((
+            f"__{BOT_NAME}__ | Select Model\n"
+            "━━━━━━━━━━\n"
+            f"*Current Provider:* {context.user_data['settings'][0]} \n"
+            f"*Current Model:* {context.user_data['settings'][1]} \n\n"
+            f"Select a model:"
+        ),
+        max_line_length=None,
+        normalize_whitespace=False
+        ), 
         reply_markup=settingMenu.provider_model_keyboard_switch(context.user_data['settings'][0]), 
-        parse_mode=ParseMode.HTML
+        parse_mode=ParseMode.MARKDOWN_V2
         )
     return SELECTING_MODEL
 

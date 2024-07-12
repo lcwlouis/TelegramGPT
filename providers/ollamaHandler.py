@@ -3,6 +3,7 @@ import os
 import aiohttp
 import requests
 import logging
+import telegramify_markdown as tm
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
@@ -73,11 +74,15 @@ def process_response_from_ollama(response) -> tuple:
     input_tokens = response.get('prompt_eval_count')
     output_tokens = response.get('eval_count')
     role = response.get('message').get('role')
-    message = response.get('message').get('content')
+    message = tm.markdownify(
+        response.get('message').get('content'),
+        max_line_length=None,
+        normalize_whitespace=False,
+    )
     # To manage the case where GPT still outputs unwanted tags that 
     # may cause telegram to fail to format the message properly
-    message = re.sub(r'<(a|article|p|br|li|sup|sub|abbr|small|ul|/a|/article|/p|/li|/sup|/sub|/abbr|/small|/ul)>', '', message)
-    message = message.replace('<h1>', '<b><u>').replace('</h1>', '</u></b>').replace('<h2>', '<b>').replace('</h2>', '</b>').replace('<h3>', '<u>').replace('</h3>', '</u>').replace('<h4>', '<i>').replace('</h4>', '</i>').replace('<h5>', '').replace('</h5>', '').replace('<h6>', '').replace('</h6>', '').replace('<big>', '<b>').replace('</big>', '</b>')
+    # message = re.sub(r'<(a|article|p|br|li|sup|sub|abbr|small|ul|/a|/article|/p|/li|/sup|/sub|/abbr|/small|/ul)>', '', message)
+    # message = message.replace('<h1>', '<b><u>').replace('</h1>', '</u></b>').replace('<h2>', '<b>').replace('</h2>', '</b>').replace('<h3>', '<u>').replace('</h3>', '</u>').replace('<h4>', '<i>').replace('</h4>', '</i>').replace('<h5>', '').replace('</h5>', '').replace('<h6>', '').replace('</h6>', '').replace('<big>', '<b>').replace('</big>', '</b>')
     return input_tokens, output_tokens, role, message
 
 def check_server_status() -> bool:
