@@ -86,10 +86,9 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
     tb_string = "".join(tb_list)
 
     # Build the message with some markup and additional information about what happened.
-    # You might need to add some logic to deal with messages longer than the 4096 character limit.
     update_str = update.to_dict() if isinstance(update, Update) else str(update)
     message = (
-        "<b>An exception was raised while handling an update at time {time} </b>\n"
+        f"<b>An exception was raised while handling an update at time {time.asctime(time.localtime())} </b>\n"
         f"<pre>update = {html.escape(json.dumps(update_str, indent=2, ensure_ascii=False))}"
         "</pre>\n\n"
         f"<pre>context.chat_data = {html.escape(str(context.chat_data))}</pre>\n\n"
@@ -143,7 +142,6 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 def main() -> None:
     persistence = PicklePersistence(filepath=PICKLE_PATH)
     application = ApplicationBuilder().token(TOKEN).persistence(persistence).build()
-    # application = ApplicationBuilder().token(TOKEN).build()
     callback_handler = TypeHandler(Update, callback)
 
     # Chats menu
@@ -187,13 +185,6 @@ def main() -> None:
     admin_add_cmd_handler = CommandHandler("admin_add", admin_add_user)
     admin_reset_cmd_handler = CommandHandler("admin_reset", admin_reset_user_settings)
 
-    # Handle unsupported commands and messages
-    # unsupported_cmd_handler = MessageHandler(filters.COMMAND, handle_unsupported_command)
-    # unsupported_msg_handler = MessageHandler(~filters.COMMAND, handle_unsupported_message)
-
-    # Add handlers
-    # application.add_handler(unsupported_cmd_handler, 1)
-    # application.add_handler(unsupported_msg_handler, 1)
     application.add_handler(callback_handler, -1)
     application.add_handler(chat_menu_handler)
     application.add_handler(settings_handler)
