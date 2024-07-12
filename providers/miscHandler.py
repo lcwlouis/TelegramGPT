@@ -17,6 +17,7 @@ VISION_MODELS: Final = [
     'claude-3-opus-20240229',
     'claude-3-5-sonnet-20240620',
     'llava-llama3:latest',
+    'llava:latest',
 ]
 
 PROMPT_DIR = os.getenv('PROMPT_DIR')
