@@ -283,6 +283,10 @@ async def end_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def del_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     from helpers.mainHelper import cleanup
     chat_id = context.user_data.get('current_chat_id')
+    if chat_id is None or chat_id <= 0 :
+        await cleanup(update, context)
+        await show_chats(update, context)
+        return SELECTING_CHAT
     
     c.execute("DELETE FROM chat_history WHERE chat_id = ?", (chat_id,))
     c.execute("DELETE FROM chats WHERE id = ?", (chat_id,))
