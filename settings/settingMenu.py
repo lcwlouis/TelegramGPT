@@ -1,5 +1,6 @@
 import telegramify_markdown as tm
 import os
+import logging
 from typing import Final
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
@@ -9,6 +10,9 @@ import providers.gptHandler as gpt
 import providers.claudeHandler as claude
 import providers.geminiHandler as gemini
 import providers.ollamaHandler as ollama
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 COLUMNS: Final = 2
 
