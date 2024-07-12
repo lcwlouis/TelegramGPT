@@ -6,7 +6,6 @@ from anthropic import AsyncAnthropic
 from helpers.dateHelper import get_current_date, get_current_weekday
 
 # Initialize logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Since there is no API endpoint to check for available models, this is to be manually updated

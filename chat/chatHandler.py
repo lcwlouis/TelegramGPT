@@ -23,7 +23,6 @@ SELECTING_CHAT, CREATE_NEW_CHAT, CHATTING, RETURN_TO_MENU = range(4)
 BOT_NAME = os.getenv('BOT_NAME')
 
 # Initialize logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Initialise path to db
@@ -358,9 +357,9 @@ async def handle_chat_completion(provider, model, temperature, max_tokens, n, st
     conn_chats.commit()
     
     # Get current token counts from database
-    c.execute('SELECT input_tokens, output_tokens, chat_title FROM chats WHERE id = ?', (chat_id,))
+    c.execute('SELECT input_tokens, output_tokens FROM chats WHERE id = ?', (chat_id,))
     row = c.fetchone()
-    total_input_tokens, total_output_tokens, chat_title = row
+    total_input_tokens, total_output_tokens = row
 
     # Update token counts in database
     if input_tokens is not None:
@@ -371,9 +370,9 @@ async def handle_chat_completion(provider, model, temperature, max_tokens, n, st
             (total_input_tokens, total_output_tokens, chat_id))
     conn_chats.commit()
 
-    reply_heading = telegramify_markdown.markdownify(f"__{BOT_NAME}__ | Chat: \n{chat_title}\n━━━━━━━━━━\n", max_line_length=None, normalize_whitespace=False)
+    reply_heading = telegramify_markdown.markdownify(f"__{BOT_NAME}__ \n", max_line_length=None, normalize_whitespace=False)
     reply_end = (
-        f"\n\nInput: `{input_tokens}` tokens | Output: `{output_tokens}` tokens\n"
+        f"\nInput: `{input_tokens}` tokens | Output: `{output_tokens}` tokens\n"
         f"Total input used: `{total_input_tokens}` tokens | Total output used: `{total_output_tokens}` tokens\n"
     )
     reply_end = telegramify_markdown.markdownify(reply_end, max_line_length=None, normalize_whitespace=False)

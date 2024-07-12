@@ -11,7 +11,7 @@ import providers.claudeHandler as claude
 import providers.geminiHandler as gemini
 import providers.ollamaHandler as ollama
 
-logging.basicConfig(level=logging.INFO)
+# Initialize logging
 logger = logging.getLogger(__name__)
 
 COLUMNS: Final = 2

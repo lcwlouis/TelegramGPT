@@ -13,7 +13,6 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 
 # Initialize logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Set up your OpenAI API credentials

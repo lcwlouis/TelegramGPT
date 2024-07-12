@@ -4,7 +4,6 @@ import os
 from dotenv import load_dotenv
 
 # Initialize logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 PROMPT_DIR = os.getenv('PROMPT_DIR')

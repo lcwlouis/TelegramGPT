@@ -50,16 +50,17 @@ from helpers.mainHelper import (
     admin_reset_user_settings,
 )
 
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-logging.getLogger("httpx").setLevel(logging.WARNING)
-
-logger = logging.getLogger(__name__)
-
 # Load environment variables from .env file
 load_dotenv(override=True)
+
+# load directory
+DB_DIR = os.getenv('DB_DIR')
+PICKLE_DIR = 'user_data.pickle'
+PICKLE_PATH = os.path.join(DB_DIR, PICKLE_DIR)
+LOG_FILE = 'bot.log'
+LOG_PATH = os.path.join(DB_DIR, LOG_FILE)
+
+os.makedirs(DB_DIR, exist_ok=True)
 
 # Telegram bot token
 TOKEN: Final = os.getenv(f'TELEGRAM_BOT_TOKEN_{os.getenv("ENVIRONMENT")}')
@@ -67,12 +68,17 @@ TOKEN: Final = os.getenv(f'TELEGRAM_BOT_TOKEN_{os.getenv("ENVIRONMENT")}')
 # Load error chat id
 ERROR_CHAT_ID = int(os.getenv('TELEGRAM_ERROR_CHAT_ID'))
 
-# load directory
-DB_DIR = os.getenv('DB_DIR')
-PICKLE_DIR = 'user_data.pickle'
-PICKLE_PATH = os.path.join(DB_DIR, PICKLE_DIR)
+# Initialize logging
+logging.basicConfig(
+        level=logging.INFO,
+        filename=LOG_PATH,
+        filemode='a',
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    )
 
-os.makedirs(DB_DIR, exist_ok=True)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
+logger = logging.getLogger(__name__)
 
 # Error handler taken from python telegram bot examples
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -82,7 +88,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 
     # traceback.format_exception returns the usual python message about an exception, but as a
     # list of strings rather than a single string, so we have to join them together.
-    tb_list = traceback.format_exception(None, context.error, context.error.__traceback__)[:5]
+    tb_list = traceback.format_exception(None, context.error, context.error.__traceback__)[:10]
     tb_string = "".join(tb_list)
 
     # Build the message with some markup and additional information about what happened.
@@ -110,6 +116,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
                 chat_id=ERROR_CHAT_ID, text=part, parse_mode=ParseMode.HTML
             )
         except Exception as e:
+            logger.error(f"Error sending error message from error handler in main.py: {e}")
             if 'Message is not modified' in str(e):
                 # If the message is not modified don't send anything
                 pass
@@ -128,6 +135,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
                 chat_id=ERROR_CHAT_ID, text=part, parse_mode=ParseMode.HTML
             )
         except Exception as e:
+            logger.error(f"Error sending error message from error handler in main.py: {e}")
             if 'Message is not modified' in str(e):
                 # If the message is not modified don't send anything
                 pass
@@ -186,16 +194,18 @@ def main() -> None:
     admin_reset_cmd_handler = CommandHandler("admin_reset", admin_reset_user_settings)
 
     application.add_handler(callback_handler, -1)
-    application.add_handler(chat_menu_handler)
-    application.add_handler(settings_handler)
-    application.add_handler(admin_add_cmd_handler)
-    application.add_handler(admin_reset_cmd_handler)
+    application.add_handlers([chat_menu_handler,
+                            settings_handler,
+                            admin_add_cmd_handler,
+                            admin_reset_cmd_handler
+                            ])
 
     # Add error handler
     application.add_error_handler(error_handler)
     
     # Start the bot
-    print("Bot polling, will exit on Ctrl+C and continue posting updates if there are warnings or errors")
+    print("Bot started polling, will save and exit on Ctrl+C")
+    logger.info("Bot started polling")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
     # On Ctrl+C exit
@@ -204,9 +214,8 @@ def main() -> None:
     settings_kill_connection()
     imageGen_kill_connection()
     user_kill_connection()
+    logger.info("Bot stopped polling")
     print("Bot polling closed. Exiting...")
-
 
 if __name__ == '__main__':
     main()
-

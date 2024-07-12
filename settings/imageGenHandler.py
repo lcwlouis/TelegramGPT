@@ -9,7 +9,6 @@ from telegram.ext import ContextTypes
 import settings.settingMenu as settingMenu
 
 # Initialize logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 SELECTING_IMAGE_SETTINGS, SELECTING_IMAGE_MODEL, SELECTING_IMAGE_SIZE = range(12,15)

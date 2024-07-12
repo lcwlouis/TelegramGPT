@@ -18,7 +18,6 @@ MAX_CHATS_PER_PAGE = 5
 BOT_NAME = os.getenv('BOT_NAME')
 
 # Initialize logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 DB_DIR = os.getenv('DB_DIR')

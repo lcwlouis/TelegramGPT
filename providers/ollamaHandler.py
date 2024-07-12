@@ -5,7 +5,6 @@ import logging
 import telegramify_markdown as tm
 
 # Initialize logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Set up url to Ollama API

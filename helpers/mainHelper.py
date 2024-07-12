@@ -13,7 +13,6 @@ from helpers.userHelper import (
 from settings.chatCompletionHandler import reset_user_settings
 from settings.imageGenHandler import reset_user_image_settings
 # Initialize logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Load whitelisted telegram ids
