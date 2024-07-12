@@ -1,4 +1,3 @@
-import re
 import os
 import aiohttp
 import requests
@@ -95,4 +94,4 @@ def check_server_status() -> bool:
     except (requests.exceptions.Timeout, requests.exceptions.RequestException):
         return False
 
-print(check_server_status())
+logger.info(f"Ollama server status of {OLLAMA_URL}: {check_server_status()}")

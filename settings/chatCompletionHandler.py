@@ -1,5 +1,6 @@
 import sqlite3
 import os
+import logging
 import telegramify_markdown as tm
 from typing import Final
 from telegram import Update
@@ -13,6 +14,10 @@ from settings.imageGenHandler import (
     image_model_selected,
     back_to_image_settings
 )
+
+# Initialize logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Define conversation states
 SELECTING_OPTION, SELECTING_MODEL, ENTERING_TEMPERATURE, ENTERING_MAX_TOKENS, ENTERING_N, ENTERING_START_PROMPT, SELECT_RESET, SELECTING_PROVIDER, SELECTING_IMAGE_SETTINGS, SELECTING_IMAGE_MODEL, SELECTING_IMAGE_SIZE = range(4, 15)
@@ -60,7 +65,7 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     c.execute('SELECT * FROM user_preferences WHERE user_id = ?', (user_id,))
     result = c.fetchone()
     if result is None:
-        print(f"User {user_id} not found in user_preferences table")
+        logger.info(f"User {user_id} has no settings, now inserting default settings")
         c.execute('INSERT INTO user_preferences (user_id, start_prompt) VALUES (?, ?)', (user_id, DEFAULT_STARTING_MESSAGE))
         conn_settinngs.commit()
         c.execute('SELECT * FROM user_preferences WHERE user_id = ?', (user_id,))
@@ -479,9 +484,9 @@ def reset_user_settings(user_id) -> bool:
         conn_settinngs.commit()
         return True
     except Exception as e:
-        print(f"Error resetting user settings: {e}")
+        logger.error(f"An error occured while trying to reset user settings in chatCompletionHandler.py: {e}")
         return False
 
 def kill_connection() -> None:
     conn_settinngs.close()
-    print("Settings DB Connection Closed")
+    logger.info("chatCompletionHandler DB Connection Closed")

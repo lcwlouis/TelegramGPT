@@ -38,7 +38,7 @@ async def admin_add_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             context.user_data.setdefault('sent_messages', []).append(message.message_id)
             return
         user_id = update.message.text.split(" ")[1].strip()
-        print(f"User id: {user_id}")
+        logger.info(f"Admin: {update.effective_user.id} added user {user_id}")
         if user_id.isdigit() and int(user_id) not in whitelisted_telegram_id and not None:
             add_user(user_id)
             whitelisted_telegram_id.append(int(user_id))
@@ -64,7 +64,7 @@ async def admin_reset_user_settings(update: Update, context: ContextTypes.DEFAUL
             context.user_data.setdefault('sent_messages', []).append(message.message_id)
             return
         user_id = update.message.text.split(" ")[1].strip()
-        print(f"User id: {user_id}")
+        logger.info(f"Admin: {update.effective_user.id} reset settings of user {user_id}")
         if user_id.isdigit() and int(user_id) in whitelisted_telegram_id:
             success_reset_settings = reset_user_settings(user_id)
             success_reset_image_settings = reset_user_image_settings(user_id)

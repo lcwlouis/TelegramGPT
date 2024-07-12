@@ -1,12 +1,16 @@
 import sqlite3
 import os
+import logging
 import telegramify_markdown as tm
 from typing import Final
 from telegram import Update
 from telegram.constants import ParseMode
-from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler, MessageHandler, filters
+from telegram.ext import ContextTypes
 import settings.settingMenu as settingMenu
 
+# Initialize logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 SELECTING_IMAGE_SETTINGS, SELECTING_IMAGE_MODEL, SELECTING_IMAGE_SIZE = range(12,15)
 SELECTING_OPTION = 4
@@ -44,11 +48,13 @@ conn_settinngs = sqlite3.connect(DB_PATH)
 
 # Store user preferences in database
 c = conn_settinngs.cursor()
-c.execute('''CREATE TABLE IF NOT EXISTS image_gen_user_preferences 
-        (user_id INTEGER PRIMARY KEY,
-        model TEXT DEFAULT "dall-e-2", 
-        size TEXT DEFAULT "256x256"
-        )''')
+c.execute('''
+    CREATE TABLE IF NOT EXISTS image_gen_user_preferences (
+        user_id INTEGER PRIMARY KEY,
+        model TEXT DEFAULT "dall-e-2",
+        size TEXT DEFAULT "1024x1024"
+    )
+''')
 
 async def image_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.effective_user.id
@@ -109,7 +115,7 @@ async def image_model_selected(update: Update, context: ContextTypes.DEFAULT_TYP
 
     # Check if the image size is applicable to model selected
     if selected_model == "dall-e-2":
-        context.user_data['image_settings'][1] = "256x256"
+        context.user_data['image_settings'][1] = "1024x1024"
     elif selected_model == "dall-e-3":
         context.user_data['image_settings'][1] = "1024x1024"
     
@@ -163,14 +169,14 @@ def reset_user_image_settings(user_id) -> bool:
     try:
         c.execute('DELETE FROM image_gen_user_preferences WHERE user_id = ?', (user_id,))
         conn_settinngs.commit()
-        c.execute('INSERT INTO image_gen_user_preferences (user_id) VALUES (?)', (user_id,))
+        c.execute('INSERT INTO image_gen_user_preferences (user_id, model, size) VALUES (?)', (user_id, "dall-e-2", "1024x1024"))
         conn_settinngs.commit()
         return True
     except Exception as e:
-        print(f"Error resetting image gen settings: {e}")
+        logger.error(f"An error occured while trying to reset user image settings in imageGenHandler.py: {e}")
         return False
 
 
 def kill_connection() -> None:
     conn_settinngs.close()
-    print("Image Gen Settings DB Connection Closed")
+    logger.info("imageGenHandler DB Connection Closed")

@@ -1,5 +1,4 @@
 import os
-import re
 import logging
 import telegramify_markdown as tm
 from typing import Final
@@ -86,7 +85,7 @@ async def chat_with_claude(messages, model='claude-3-haiku-20240307', temperatur
         messages=messages
     )
     if response.type == 'error':
-        print("Error: " + response.error)
+        logger.error(f"An error occured while trying to get response from claude in claudeHandler.py: {response}")
         return None
     return process_response_from_claude(response)
 

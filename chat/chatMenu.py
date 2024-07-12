@@ -44,7 +44,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE, command_star
     context.user_data.clear()
     context.user_data['chat_page'] = 0  # Reset the page to 0
     context.user_data.setdefault('start_cmd_ids', []).extend(temp)
-    print(context.user_data)
     return await show_chats(update, context)
 
 # Chats Menu 
@@ -69,11 +68,10 @@ async def show_chats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         c.execute("SELECT id FROM chats WHERE user_id = ? ORDER BY (SELECT MAX(message_id) FROM chat_history WHERE chat_id = chats.id) ASC LIMIT 1",
                 (user_id,))
         chat_id = c.fetchone()[0]
-        print(f"Deleting chat {chat_id}")
         # get chat title
         c.execute("SELECT chat_title FROM chats WHERE id = ?", (chat_id,))
         chat_title = c.fetchone()[0]
-        print(f"Deleting chat {chat_title}...")
+        logger.info(f"Deleting chat {chat_id} with title {chat_title} by user {user_id}")
         c.execute("DELETE FROM chats WHERE id = ?", (chat_id,))
         c.execute("DELETE FROM chat_history WHERE chat_id = ?", (chat_id,))
         conn_chats.commit()
@@ -139,7 +137,8 @@ async def show_chats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         if query.message.text != message_text or query.message.reply_markup != reply_markup:
             await query.message.edit_text(text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN_V2)
         return SELECTING_CHAT
-    except:
+    except Exception as e:
+        logger.warning(f"There was a double post of this message. Now deleted previous Exception: {e}") # Note on this one
         from helpers.mainHelper import cleanup
         # This is not a callback query, so send a new message
         await cleanup(update, context)
@@ -190,7 +189,7 @@ async def open_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
                             )
                         context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
                     except Exception as e:
-                        logger.error(f"An error occurred while formatting a user message while opening a chat: {e}.")
+                        logger.error(f"An error occurred while formatting a user message while opening a chat in chatMenu.py: {e}.")
                         add_to_message_list = await query.message.reply_text(f"<b>You</b>\n<b>Error formatting the message: </b>\n{html.escape(message)}", parse_mode=ParseMode.HTML)
                         context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
                 if message_type == 'image_url':
@@ -203,7 +202,7 @@ async def open_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
                             )
                         context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
                     except Exception as e:
-                        logger.error(f"An error occurred while sending a user image while opening a chat: {e}.")
+                        logger.error(f"An error occurred while sending a user image while opening a chat in chatMenu.py: {e}.")
                         add_to_message_list = await query.message.reply_text(f"Error sending the image")
                         context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
             elif role == 'assistant':
@@ -219,7 +218,7 @@ async def open_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
                                 )
                             context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
                         except Exception as e:
-                            logger.error(f"An error occurred while formatting a assistant message while opening a chat: {e}.")
+                            logger.error(f"An error occurred while formatting a assistant message while opening a chat in chatMenu.py: {e}.")
                             header = f"<b>__{BOT_NAME}__</b>\n<b>Error formatting the message: </b>\n" if i == 0 else ""
                             add_to_message_list = await query.message.reply_text(f"{header}{html.escape(message_part)}", parse_mode=ParseMode.HTML)
                             context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
@@ -233,6 +232,7 @@ async def open_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
                             )
                         context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
                     except Exception as e:
+                        logger.error(f"An error occurred while sending an assistant image while opening a chat in chatMenu.py: {e}.")
                         add_to_message_list = await query.message.reply_text(f"Error sending the image")
                         context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
             else:
@@ -251,7 +251,7 @@ async def prev_page(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     try:
         return await show_chats(update, context)
     except Exception as e:
-        print(f"Ignoring spam press of button: {e}")
+        logger.warning(f"An error occured due to spam usage of prev_page in chatMenu.py: {e}")
         return SELECTING_CHAT
 
 async def next_page(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -259,7 +259,7 @@ async def next_page(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     try:
         return await show_chats(update, context)
     except Exception as e:
-        print(f"Ignoring spam press of button: {e}")
+        logger.warning(f"An error occured due to spam usage of next_page in chatMenu.py: {e}")
         return SELECTING_CHAT
 
 async def no_page(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -297,19 +297,19 @@ async def del_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.callback_query:
         await update.callback_query.answer()
         await update.callback_query.edit_message_text(f"Chat \"{context.user_data.get('current_chat_title')}\" deleted successfully!")
-        del context.user_data['current_chat_id']
-        del context.user_data['current_chat_title']
-        await cleanup(update, context)
-        await show_chats(update, context)
-        return SELECTING_CHAT
     else:
         message = await update.message.reply_text(f"Chat \"{context.user_data.get('current_chat_title')}\" deleted successfully!")
         context.user_data.setdefault('sent_messages', []).append(message.message_id)
+
+    try:
         del context.user_data['current_chat_id']
         del context.user_data['current_chat_title']
         await cleanup(update, context)
         await show_chats(update, context)
-        return SELECTING_CHAT
+    except Exception as e:
+        logger.error(f"An error occured during usage of del_chat in chatMenu.py: {e}")
+
+    return SELECTING_CHAT
 
 async def show_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
@@ -337,4 +337,4 @@ async def show_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def kill_connection():
     conn_chats.close()
-    print("chatMenu DB Connection Closed")
+    logger.info("chatMenu DB Connection Closed")

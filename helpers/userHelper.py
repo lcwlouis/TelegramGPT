@@ -49,6 +49,6 @@ def add_user(user_id: int) -> None:
 
 def kill_connection() -> None:
     conn_users.close()
-    print("User DB Connection in user.py Closed")
+    logger.info("userHelper DB Connection Closed")
 
 on_start()

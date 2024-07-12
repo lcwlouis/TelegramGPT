@@ -1,5 +1,4 @@
 import os
-import re
 import aiohttp
 import base64
 import logging
@@ -53,7 +52,6 @@ def build_message_list_gpt(chat_history) -> list:
 
 # Define to interact with OpenAI GPT
 async def chat_with_gpt(messages, model='gpt-3.5-turbo', temperature=0.5, max_tokens=100, n=1) -> str:
-    # print(messages)
     response = openai.chat.completions.create(
         model=model,  # Specify the GPT-4 engine
         messages=messages,
@@ -64,7 +62,7 @@ async def chat_with_gpt(messages, model='gpt-3.5-turbo', temperature=0.5, max_to
     return process_response_from_openai(response)
 
 # function to interact with openai's dalle
-async def image_gen_with_openai(prompt, model='dall-e-3',n=1, size="1024x1024") -> str:
+async def image_gen_with_openai(prompt, model='dall-e-2',n=1, size="512x512") -> str:
     response = openai.images.generate(
         model=model,
         prompt=prompt,
@@ -76,7 +74,6 @@ async def image_gen_with_openai(prompt, model='dall-e-3',n=1, size="1024x1024") 
     
     # image_url = "https://www.gstatic.com/webp/gallery/1.jpg" # DEBUG PLACEHOLDER URL
 
-    # if response.data:
     if image_url:
         # image_url = response.data[0].url
         async with aiohttp.ClientSession() as session:
@@ -89,10 +86,10 @@ async def image_gen_with_openai(prompt, model='dall-e-3',n=1, size="1024x1024") 
                     img_str = base64.b64encode(buffered.getvalue()).decode()
                     return img_str
                 else:
-                    print(f"Failed to download image: HTTP {resp.status}")
+                    logger.error(f"Error downloading image from {image_url} in image gen with openai in gptHandler.py")
                     return None
     else:
-        print("No image data in the response")
+        logger.error(f"No image url in image gen with openai in gptHandler.py")
         return None
     
 # Function to get the available models

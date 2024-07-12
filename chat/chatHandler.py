@@ -102,7 +102,7 @@ def check_if_chat_history_exists(chat_id: int, SYSTEM_PROMPT: str) -> None:
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
     user_id = update.effective_user.id
-    print(f"{user_id}: {user_message}") # DEBUG_USE
+    logger.info(f"{user_id}: {user_message}")
     # Get current settings
     _, provider, model, temperature, max_tokens, n, start_prompt = chatCompletionHandler.get_current_settings(user_id)
     chat_id = context.user_data.get('current_chat_id')
@@ -152,12 +152,12 @@ async def handle_gen_image(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                 (chat_id, stored_message, 'user'))
         conn_chats.commit()
     except Exception as e:
+        logger.error(f"An error occurred while generating the image in chatHandler.py: {e}.")
         error_msg = telegramify_markdown.markdownify(f"__{BOT_NAME}__ | Error \nAn error occurred while generating the image: {e}. The image prompt will not be saved.", max_line_length=None, normalize_whitespace=False)
         message_id = await update.message.reply_text(
             error_msg, 
             parse_mode=ParseMode.MARKDOWN_V2
             )
-        logger.error(f"An error occurred while generating the image: {e}.")
         context.user_data.setdefault('sent_messages', []).append(message_id.message_id)
         return CHATTING
 
@@ -240,11 +240,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Save photo info to chat history
     if image_in_base64 is not None:
-        print(f"User uploaded caption with image: {update.message.caption}")
+        logger.info(f"User uploaded caption with image: {update.message.caption}")
         if update.message.caption is not None:
             user_message = update.message.caption
             user_id = update.effective_user.id
-            print(f"{user_id}: {user_message}") # DEBUG_USE
             # Get current settings
             _, provider, model, temperature, max_tokens, n, start_prompt = chatCompletionHandler.get_current_settings(user_id)
             chat_id = context.user_data.get('current_chat_id')
@@ -303,6 +302,7 @@ async def handle_chat_completion(provider, model, temperature, max_tokens, n, st
         try:
             input_tokens, output_tokens, role, message = await gpt.chat_with_gpt(messages, model=model, temperature=temperature, max_tokens=max_tokens, n=n)
         except Exception as e:
+            logger.error(f"An error occurred while talking to GPT in chatHandler.py: {e}.")
             error_msg = f"__{BOT_NAME}__ | Error \nAn error occurred while talking to GPT: {e}"
             error_msg = telegramify_markdown.markdownify(error_msg, max_line_length=None, normalize_whitespace=False)
             await bot_message.edit_text(error_msg, parse_mode=ParseMode.MARKDOWN_V2)
@@ -314,6 +314,7 @@ async def handle_chat_completion(provider, model, temperature, max_tokens, n, st
         try:
             input_tokens, output_tokens, role, message = await claude.chat_with_claude(messages, model=model, temperature=temperature, max_tokens=max_tokens, system=start_prompt)
         except Exception as e:
+            logger.error(f"An error occurred while talking to Claude in chatHandler.py: {e}.")
             error_msg = f"__{BOT_NAME}__ | Error \nAn error occurred while talking to Claude: {e}"
             error_msg = telegramify_markdown.markdownify(error_msg, max_line_length=None, normalize_whitespace=False)
             await bot_message.edit_text(error_msg, parse_mode=ParseMode.MARKDOWN_V2)
@@ -326,6 +327,7 @@ async def handle_chat_completion(provider, model, temperature, max_tokens, n, st
         try:
             input_tokens, output_tokens, role, message = await gemini.chat_with_gemini(model=model, temperature=temperature, max_tokens=max_tokens, message_history=chat_history, system=start_prompt)
         except Exception as e:
+            logger.error(f"An error occurred while talking to Gemini in chatHandler.py: {e}.")
             error_msg = f"__{BOT_NAME}__ | Error \nAn error occurred while talking to Gemini: {e}"
             error_msg = telegramify_markdown.markdownify(error_msg, max_line_length=None, normalize_whitespace=False)
             await bot_message.edit_text(error_msg, parse_mode=ParseMode.MARKDOWN_V2)
@@ -344,6 +346,7 @@ async def handle_chat_completion(provider, model, temperature, max_tokens, n, st
         try:
             input_tokens, output_tokens, role, message = await ollama.chat_with_ollama(chat_history, model=model, temperature=temperature, max_tokens=max_tokens)
         except Exception as e:
+            logger.error(f"An error occurred while talking to Ollama in chatHandler.py: {e}.")
             error_msg = f"__{BOT_NAME}__ | Error\nAn error occurred while talking to {provider.title()}: {e}"
             error_msg = telegramify_markdown.markdownify(error_msg, max_line_length=None, normalize_whitespace=False)
             await bot_message.edit_text(error_msg, parse_mode=ParseMode.MARKDOWN_V2)
@@ -382,7 +385,7 @@ async def handle_chat_completion(provider, model, temperature, max_tokens, n, st
             try:
                 await bot_message.edit_text(message_part, parse_mode=ParseMode.MARKDOWN_V2)
             except Exception as e:
-                logger.error(f"An error occurred while editing the message: {e}.")
+                logger.error(f"An error occurred while editing the message in handle_chat_completion in chatHandler.py: {e}.")
                 message = await bot_message.reply_text(f"<b>Message unable to format properly: </b> {html.escape(message)}", parse_mode=ParseMode.HTML)
                 context.user_data.setdefault('sent_messages', []).append(message.message_id)
         else:
@@ -390,7 +393,7 @@ async def handle_chat_completion(provider, model, temperature, max_tokens, n, st
                 message = await bot_message.reply_text(message_part, parse_mode=ParseMode.MARKDOWN_V2)
                 context.user_data.setdefault('sent_messages', []).append(message.message_id)
             except Exception as e:
-                logger.error(f"An error occurred while replying to the message: {e}.")
+                logger.error(f"An error occurred while replying to the message in handle_chat_completion in chatHandler.py: {e}.")
                 message = await bot_message.reply_text(f"<b>Message unable to format properly: </b> {html.escape(message)}", parse_mode=ParseMode.HTML)
                 context.user_data.setdefault('sent_messages', []).append(message.message_id)
         return CHATTING
@@ -441,4 +444,4 @@ def get_chat_handlers():
 
 def kill_connection():
     conn_chats.close()
-    print("chatHandler DB Connection Closed")
+    logger.info("chatHandler DB Connection Closed")

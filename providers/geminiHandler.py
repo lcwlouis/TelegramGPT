@@ -1,5 +1,4 @@
 import os
-import re
 import logging
 import requests
 import telegramify_markdown as tm
@@ -80,11 +79,6 @@ def get_available_gemini_models() -> list:
     for model in response.json()['models']:
         available_models.append(model['name'].split('/')[-1])
     available_models = sorted([model for model in available_models if 'gemini' and '1.5' in model])
-    # for model in response:
-    #     # available_models.append(model.name.split('/')[-1])
-    #     print(model)
-    # # Filter for only those containing gemini and sorted
-    # # available_models = sorted([model for model in available_models if 'gemini' and '1.5' in model])
     return available_models
 
 def process_response_from_gemini(response) -> tuple:
@@ -107,21 +101,12 @@ def get_available_gemini_models_for_testing() -> list:
     # # Disabled due to serverside issues it is returning nonsense
     response = gemini.list_models()
     available_models = []
-    for model in response:
-        # available_models.append(model.name.split('/')[-1])
-        print(model.name)
     # Filter for only those containing gemini and sorted
     available_models = sorted([model for model in available_models if 'gemini' and '1.5' in model])
     return available_models
 
-    # # REST API version
-    # response = requests.get(f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}")
-    # available_models = []
-    # for model in response.json()['models']:
-    #     available_models.append(model['name'])
-    # return available_models
-
 try:
-    print(get_available_gemini_models_for_testing())
+    get_available_gemini_models_for_testing()
+    logger.info(f"SDK version is working again in geminiHandler.py")
 except Exception as e:
-    print(e)
+    logger.error(f"An error occured while trying to get available gemini models from sdk version in geminiHandler.py: {e}")
