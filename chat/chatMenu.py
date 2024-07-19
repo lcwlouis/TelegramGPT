@@ -16,6 +16,7 @@ SELECTING_CHAT, CREATE_NEW_CHAT, CHATTING, RETURN_TO_MENU = range(4)
 MAX_CHATS_PER_PAGE = 5
 
 BOT_NAME = os.getenv('BOT_NAME')
+USER_TITLE = os.getenv('USER_TITLE')
 
 # Initialize logging
 logger = logging.getLogger(__name__)
@@ -183,20 +184,20 @@ async def open_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
                 if message_type == 'text':
                     try:
                         add_to_message_list = await query.message.reply_text(
-                            tm.markdownify(f"__You__\n{message}", max_line_length=None, normalize_whitespace=False), 
+                            tm.markdownify(f"__{USER_TITLE}__\n{message}", max_line_length=None, normalize_whitespace=False), 
                             parse_mode=ParseMode.MARKDOWN_V2
                             )
                         context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
                     except Exception as e:
                         logger.error(f"An error occurred while formatting a user message while opening a chat in chatMenu.py: {e}.")
-                        add_to_message_list = await query.message.reply_text(f"<b>You</b>\n<b>Error formatting the message: </b>\n{html.escape(message)}", parse_mode=ParseMode.HTML)
+                        add_to_message_list = await query.message.reply_text(f"<b>{USER_TITLE}</b>\n<b>Error formatting the message: </b>\n{html.escape(message)}", parse_mode=ParseMode.HTML)
                         context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
                 if message_type == 'image_url':
                     try:
                         decoded_bytes = base64.b64decode(message)
                         add_to_message_list = await query.message.reply_photo(
                             decoded_bytes, 
-                            caption=tm.markdownify(f"__You__ | Chat: \n{chat_title}\n", max_line_length=None, normalize_whitespace=False), 
+                            caption=tm.markdownify(f"__{USER_TITLE}__ | Chat: \n{chat_title}\n", max_line_length=None, normalize_whitespace=False), 
                             parse_mode=ParseMode.MARKDOWN_V2
                             )
                         context.user_data.setdefault('sent_messages', []).append(add_to_message_list.message_id)
