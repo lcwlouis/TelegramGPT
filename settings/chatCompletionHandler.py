@@ -44,14 +44,18 @@ COLUMNS: Final = 2
 
 # Default starting message from file system_prompt.txt
 DEFAULT_STARTING_MESSAGE = open(PROMPT_PATH, 'r').read()
+DEFAULT_PROVIDER = "openai"
+DEFAULT_MODEL = "gpt-4o-mini"
+DEFAULT_TEMPERATURE = 0.7
 DEFAULT_MAX_TOKENS = 512
+DEFAULT_N = 1
 
 # Store user preferences in database
 c = conn_settinngs.cursor()
 c.execute('''CREATE TABLE IF NOT EXISTS user_preferences 
         (user_id INTEGER PRIMARY KEY, 
-        provider TEXT DEFAULT "openai", 
-        model TEXT DEFAULT "gpt-3.5-turbo", 
+        provider TEXT DEFAULT "", 
+        model TEXT DEFAULT "", 
         temperature FLOAT DEFAULT 0.7, 
         max_tokens INTEGER DEFAULT 512, 
         n INTEGER DEFAULT 1, 
@@ -65,7 +69,7 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     result = c.fetchone()
     if result is None:
         logger.info(f"User {user_id} has no settings, now inserting default settings")
-        c.execute('INSERT INTO user_preferences (user_id, start_prompt) VALUES (?, ?)', (user_id, DEFAULT_STARTING_MESSAGE))
+        c.execute('INSERT INTO user_preferences (user_id, provider, model, temperature, max_tokens, n, start_prompt) VALUES (?, ?, ?, ?, ?, ?, ?)', (user_id, DEFAULT_PROVIDER, DEFAULT_MODEL, DEFAULT_TEMPERATURE, DEFAULT_MAX_TOKENS, DEFAULT_N, DEFAULT_STARTING_MESSAGE))
         conn_settinngs.commit()
         c.execute('SELECT * FROM user_preferences WHERE user_id = ?', (user_id,))
         result = c.fetchone()
@@ -377,7 +381,7 @@ async def reset_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     user_id = update.effective_user.id
     c.execute('DELETE FROM user_preferences WHERE user_id = ?', (user_id,))
     conn_settinngs.commit()
-    c.execute('INSERT INTO user_preferences (user_id, max_tokens, start_prompt) VALUES (?, ?, ?)', (user_id, DEFAULT_MAX_TOKENS, DEFAULT_STARTING_MESSAGE))
+    c.execute('INSERT INTO user_preferences (user_id, provider, model, temperature, max_tokens, n, start_prompt) VALUES (?, ?, ?, ?, ?, ?, ?)', (user_id, DEFAULT_PROVIDER, DEFAULT_MODEL, DEFAULT_TEMPERATURE, DEFAULT_MAX_TOKENS, DEFAULT_N, DEFAULT_STARTING_MESSAGE))
     conn_settinngs.commit()
     c.execute('SELECT * FROM user_preferences WHERE user_id = ?', (user_id,))
     row = c.fetchone()
@@ -469,7 +473,7 @@ def get_current_settings(user_id) -> tuple:
     if row is not None:
         return row
     else:
-        c.execute('INSERT INTO user_preferences (user_id, start_prompt) VALUES (?, ?)', (user_id, DEFAULT_STARTING_MESSAGE))
+        c.execute('INSERT INTO user_preferences (user_id, provider, model, temperature, max_tokens, n, start_prompt) VALUES (?, ?, ?, ?, ?, ?, ?)', (user_id, DEFAULT_PROVIDER, DEFAULT_MODEL, DEFAULT_TEMPERATURE, DEFAULT_MAX_TOKENS, DEFAULT_N, DEFAULT_STARTING_MESSAGE))
         conn_settinngs.commit()
         c.execute('SELECT * FROM user_preferences WHERE user_id = ?', (user_id,))
         row = c.fetchone()
@@ -479,7 +483,7 @@ def reset_user_settings(user_id) -> bool:
     try:
         c.execute('DELETE FROM user_preferences WHERE user_id = ?', (user_id,))
         conn_settinngs.commit()
-        c.execute('INSERT INTO user_preferences (user_id, start_prompt) VALUES (?, ?)', (user_id, DEFAULT_STARTING_MESSAGE))
+        c.execute('INSERT INTO user_preferences (user_id, provider, model, temperature, max_tokens, n, start_prompt) VALUES (?, ?, ?, ?, ?, ?, ?)', (user_id, DEFAULT_PROVIDER, DEFAULT_MODEL, DEFAULT_TEMPERATURE, DEFAULT_MAX_TOKENS, DEFAULT_N, DEFAULT_STARTING_MESSAGE))
         conn_settinngs.commit()
         return True
     except Exception as e:
