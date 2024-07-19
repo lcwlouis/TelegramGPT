@@ -26,14 +26,6 @@ from settings.imageGenHandler import (
 from chat.chatMenu import (
     start,
     show_chats,
-    create_new_chat,
-    open_chat,
-    show_help,
-    prev_page,
-    next_page,
-    end_chat,
-    del_chat,
-    no_page,
     kill_connection as chatMenu_kill_connection
 )
 from chat.chatHandler import (
@@ -67,6 +59,9 @@ TOKEN: Final = os.getenv(f'TELEGRAM_BOT_TOKEN_{os.getenv("ENVIRONMENT")}')
 
 # Load error chat id
 ERROR_CHAT_ID = int(os.getenv('TELEGRAM_ERROR_CHAT_ID'))
+
+# # Timeout in seconds
+# CONVERSATION_TIMEOUT: Final = 300
 
 # Initialize logging
 logging.basicConfig(
@@ -155,26 +150,17 @@ def main() -> None:
     # Chats menu
     chat_menu_handler = ConversationHandler(
         entry_points=[
-            CommandHandler("start", start), 
-            CommandHandler("help", show_help),
-            CommandHandler("end", end_chat),
-            CommandHandler("delete", del_chat),
-            CallbackQueryHandler(show_chats, pattern="^show_chats$"), 
-            CallbackQueryHandler(create_new_chat, pattern="^create_new_chat$"),
-            CallbackQueryHandler(open_chat, pattern="^open_chat_"),
-            CallbackQueryHandler(show_help, pattern="^help$"),
-            CallbackQueryHandler(exit_menu, pattern="^exit_menu$"),
-            CallbackQueryHandler(prev_page, pattern="^prev_page$"),
-            CallbackQueryHandler(next_page, pattern="^next_page$"),
-            CallbackQueryHandler(no_page, pattern="^no_page$"),
+            CommandHandler("start", start),
+            CallbackQueryHandler(show_chats, pattern="^show_chats$"),
             ],
         states=get_chat_handlers(),
-        fallbacks=[CallbackQueryHandler(start, pattern="^start$")],
+        fallbacks=[CallbackQueryHandler(exit_menu, pattern="^exit_menu$")],
         name="chat_menu",
         allow_reentry=True,
         per_message=False,
         block=True,
-        persistent=True
+        persistent=True,
+        # conversation_timeout=CONVERSATION_TIMEOUT,
     )
     
     # Settings menu handler
