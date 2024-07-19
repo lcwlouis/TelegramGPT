@@ -35,12 +35,26 @@ c = conn_chats.cursor()
 # Define start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE, command_start: bool = True) -> int:
     from helpers.mainHelper import cleanup
-    temp = context.user_data.get('start_cmd_ids', [])
-    if command_start:
-        temp.append(update.message.message_id)
-    else:
+    try:
         temp = context.user_data.get('start_cmd_ids', [])
-    await cleanup(update, context)
+        if command_start:
+            temp.append(update.message.message_id)
+        else:
+            temp = context.user_data.get('start_cmd_ids', [])
+        await cleanup(update, context)
+    except Exception as e:
+        # Send a message telling user failed to delete above messages please clear them manually
+        message = await context.bot.send_message(chat_id=update.effective_chat.id,
+                                                text=tm.markdownify(f"__{BOT_NAME}__ \nFailed to delete messages. I will attempt to delete the last 100 messages, please clear the rest manually. This message will be deleted in 5 seconds.",
+                                                                    max_line_length=None, 
+                                                                    normalize_whitespace=False
+                                                                    ), 
+                                                parse_mode=ParseMode.MARKDOWN_V2)
+        time.sleep(5)
+        chunk = [i for i in range(message.message_id - 99, message.message_id+1)]
+        chunk.remove(message.message_id-1)
+        await context.bot.delete_messages(chat_id=update.effective_chat.id, message_ids=chunk)
+        logger.error(f"An error occured during usage of start in chatMenu.py: {e}")
     context.user_data.clear()
     context.user_data['chat_page'] = 0  # Reset the page to 0
     context.user_data.setdefault('start_cmd_ids', []).extend(temp)
