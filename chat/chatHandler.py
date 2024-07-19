@@ -75,8 +75,8 @@ async def handle_save_new_chat(prompt, user_id):
     messages = miscHandler.build_message_list("text", title_prompt, "system", messages)
     messages = miscHandler.build_message_list("text", gen_prompt, "user", messages)
 
-    response = await gpt.chat_with_gpt(messages, model='gpt-4o-mini', temperature=1, max_tokens=30, n=1)
-    chat_title = response[3]
+    response = await gpt.title_with_gpt(messages, model='gpt-4o-mini', temperature=1, max_tokens=30, n=1)
+    chat_title = response
     
     c.execute("INSERT INTO chats (user_id, chat_title) VALUES (?, ?)", 
             (user_id, chat_title))

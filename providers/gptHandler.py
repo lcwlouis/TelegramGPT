@@ -50,7 +50,7 @@ def build_message_list_gpt(chat_history) -> list:
     return messages
 
 # Define to interact with OpenAI GPT
-async def chat_with_gpt(messages, model='gpt-3.5-turbo', temperature=0.5, max_tokens=100, n=1) -> str:
+async def chat_with_gpt(messages, model='gpt-4o-mini', temperature=0.5, max_tokens=100, n=1) -> str:
     response = openai.chat.completions.create(
         model=model,  # Specify the GPT-4 engine
         messages=messages,
@@ -59,6 +59,16 @@ async def chat_with_gpt(messages, model='gpt-3.5-turbo', temperature=0.5, max_to
         n=n,  # Generate a single response
     )
     return process_response_from_openai(response)
+
+async def title_with_gpt(prompt, model='gpt-4o-mini', temperature=0.5, max_tokens=30, n=1) -> str:
+    response = openai.chat.completions.create(
+        model=model,  # Specify the GPT-4 engine
+        messages=prompt,
+        max_tokens=max_tokens,  # Set the maximum number of tokens in the response
+        temperature=temperature,  # Control the randomness of the response
+        n=n,  # Generate a single response
+    )
+    return response.choices[0].message.content.strip()
 
 # function to interact with openai's dalle
 async def image_gen_with_openai(prompt, model='dall-e-2',n=1, size="512x512") -> str:
